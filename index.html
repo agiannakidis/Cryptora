@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cryptora — Crypto Casino</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  @import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700;800;900&family=Rajdhani:wght@600;700&display=swap');
+
+  :root{
+    --gold:#f5a623;--amber:#f59e0b;--green:#22c55e;
+    --purple:#1a0a3a;--navy:#0d0820;
+    --card-gold:#c8821a;
+  }
+
+  body{
+    font-family:'Exo 2',sans-serif;
+    background:var(--navy);
+    min-height:100vh;
+    overflow-x:hidden;
+  }
+
+  /* ── BACKGROUND ── */
+  .bg-scene{
+    position:fixed;inset:0;z-index:0;
+    background:radial-gradient(ellipse 120% 80% at 50% 60%, #2d0e6e 0%, #150535 40%, #090218 100%);
+    overflow:hidden;
+  }
+  .bg-scene::before{
+    content:'';position:absolute;inset:0;
+    background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100%25' height='100%25'%3E%3Cdefs%3E%3CradialGradient id='s' cx='50%25' cy='50%25' r='50%25'%3E%3Cstop offset='0' stop-color='%23ffffff08'/%3E%3Cstop offset='100%25' stop-color='%23ffffff00'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='15%25' cy='40%25' r='180' fill='%234f1da820'/%3E%3Ccircle cx='85%25' cy='35%25' r='160' fill='%234f1da820'/%3E%3C/svg%3E") no-repeat center;
+    pointer-events:none;
+  }
+  /* neon floor glow */
+  .bg-scene::after{
+    content:'';position:absolute;bottom:0;left:0;right:0;height:40%;
+    background:linear-gradient(to top, #1a0a3a88 0%, transparent 100%);
+  }
+  /* slot machine silhouettes */
+  .slot-silhouette::before{
+    content:'';position:absolute;top:20px;left:15px;right:15px;height:55%;
+    background:linear-gradient(135deg,#3d1a8888,#1e0d5088);
+    border-radius:8px;border:1px solid #5a2db022;
+  }
+
+  /* sparkles */
+  .sparkles{position:absolute;inset:0;pointer-events:none}
+  .spark{position:absolute;width:3px;height:3px;border-radius:50%;background:#f5a623;
+    animation:twinkle 3s infinite;}
+  @keyframes twinkle{0%,100%{opacity:0;transform:scale(0)}50%{opacity:1;transform:scale(1)}}
+
+  /* ── NAV ── */
+  nav{
+    position:relative;z-index:10;
+    display:flex;align-items:center;gap:0;
+    padding:0 32px;height:60px;
+    background:linear-gradient(90deg,rgba(10,5,28,.95) 0%,rgba(20,8,45,.92) 100%);
+    border-bottom:1px solid rgba(245,166,35,.2);
+    backdrop-filter:blur(12px);
+  }
+  .nav-logo{
+    display:flex;align-items:center;gap:8px;
+    font-size:22px;font-weight:900;letter-spacing:.04em;
+    color:#f5a623;text-decoration:none;margin-right:24px;
+    text-shadow:0 0 20px #f5a62366;
+  }
+  .nav-logo .coin{
+    width:34px;height:34px;border-radius:50%;
+    background:radial-gradient(circle at 35% 35%,#ffd700,#f5a623 50%,#c8821a);
+    display:flex;align-items:center;justify-content:center;
+    font-size:16px;font-weight:900;color:#7a3a00;
+    box-shadow:0 2px 12px #f5a62366,0 0 0 2px #c8821a44;
+  }
+  .nav-items{display:flex;align-items:center;gap:4px;flex:1}
+  .nav-item{
+    display:flex;align-items:center;gap:6px;
+    padding:6px 16px;border-radius:8px;
+    color:#94a3b8;font-size:14px;font-weight:600;
+    text-decoration:none;cursor:pointer;transition:all .2s;border:none;background:none;
+  }
+  .nav-item:hover{color:#e2e8f0;background:rgba(255,255,255,.06)}
+  .nav-item.active{
+    color:#f5a623;background:rgba(245,166,35,.12);
+    border:1px solid rgba(245,166,35,.25);
+  }
+  .nav-item .icon{font-size:15px;opacity:.8}
+  .nav-btn{
+    margin-left:auto;
+    padding:8px 22px;border-radius:8px;
+    background:linear-gradient(135deg,#f5a623,#e08010);
+    color:#000;font-size:14px;font-weight:800;
+    border:none;cursor:pointer;transition:all .2s;
+    box-shadow:0 0 16px #f5a62344;text-decoration:none;
+  }
+  .nav-btn:hover{transform:translateY(-1px);box-shadow:0 4px 20px #f5a62366}
+
+    /* ── CAROUSEL ── */
+  .carousel-wrap{position:relative;z-index:5;width:100%;padding:0 80px;box-sizing:border-box;}
+  .carousel-viewport{
+    overflow:hidden;
+    width:100%;
+  }
+  .carousel-track{display:flex;flex-wrap:wrap;gap:12px;transition:transform .35s cubic-bezier(.4,0,.2,1),opacity .15s;touch-action:pan-y;}
+  .slot-card{flex:0 0 calc(25% - 9px) !important;min-width:0;}
+  .slot-screen{
+    position:absolute;inset:0;overflow:hidden;
+    display:flex;align-items:center;justify-content:center;
+    background:#0d0820;
+  }
+  .slot-screen img{
+    width:100%;height:100%;object-fit:cover;object-position:center;
+  }
+
+.arrow-btn{position:absolute;top:50%;transform:translateY(-50%);z-index:10;background:none;border:none;cursor:pointer;padding:8px;opacity:.7;transition:opacity .2s;display:flex;align-items:center;}
+  .arrow-btn:hover .arrow-tri{filter:brightness(1.3)}
+  .arrow-btn:active{transform:translateY(-50%) scale(.92)}
+  .arrow-left{left:4px}
+  .arrow-right{right:4px}
+  .arrow-tri{
+    width:0;height:0;
+    border-top:22px solid transparent;
+    border-bottom:22px solid transparent;
+    filter:drop-shadow(0 0 8px #f5a62388);
+  }
+  .arrow-left .arrow-tri{border-right:38px solid #f5a623}
+  .arrow-right .arrow-tri{border-left:38px solid #f5a623}
+
+  /* ── SLOT CARD ── */
+.slot-machine{width:100%;aspect-ratio:4/3;border-radius:8px;overflow:hidden;border:1px solid rgba(200,130,26,.25);transition:transform .18s,box-shadow .18s,border-color .18s;position:relative;cursor:pointer;background:#0d0820;}
+  .slot-machine:hover{
+    transform:translateY(-4px) scale(1.02);
+    box-shadow:0 0 30px #f5a62355,0 12px 40px rgba(0,0,0,.7);
+  }
+
+  /* outer play button */
+  .play-outer{
+    width:100%;margin-top:10px;
+    padding:12px;
+    background:linear-gradient(135deg,#16a34a,#15803d);
+    color:#fff;font-weight:800;font-size:15px;letter-spacing:.04em;
+    border:none;border-radius:8px;cursor:pointer;
+    box-shadow:0 4px 16px rgba(22,163,74,.4),0 0 0 1px #15803d;
+    transition:all .2s;
+    text-transform:uppercase;
+  }
+  .play-outer:hover{
+    background:linear-gradient(135deg,#22c55e,#16a34a);
+    transform:translateY(-2px);
+    box-shadow:0 6px 24px rgba(34,197,94,.5);
+  }
+  .play-outer:active{transform:translateY(0)}
+
+  /* corner lights */
+  .slot-corner{
+    position:absolute;width:8px;height:8px;border-radius:50%;
+    background:#f5a623;box-shadow:0 0 6px #f5a623;
+    animation:blink 2s infinite;
+  }
+  .slot-corner.tl{top:6px;left:6px;animation-delay:0s}
+  .slot-corner.tr{top:6px;right:6px;animation-delay:.5s}
+  .slot-corner.bl{bottom:6px;left:6px;animation-delay:1s}
+  .slot-corner.br{bottom:6px;right:6px;animation-delay:1.5s}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+
+  /* ── FOOTER ROW ── */
+  .view-all-wrap{
+    position:relative;z-index:5;
+    display:flex;justify-content:flex-end;
+    max-width:1240px;margin:16px auto 0;
+    padding:0 20px;
+  }
+  .view-all-btn{
+    display:flex;align-items:center;gap:6px;
+    padding:10px 20px;border-radius:8px;
+    background:rgba(255,255,255,.05);
+    border:1px solid rgba(255,255,255,.12);
+    color:#e2e8f0;font-size:14px;font-weight:600;
+    cursor:pointer;transition:all .2s;text-decoration:none;
+  }
+  .view-all-btn:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2)}
+
+  /* ── TICKER (wins) ── */
+  .wins-ticker{
+    position:relative;z-index:5;
+    max-width:1240px;margin:24px auto 0;
+    padding:0 20px;
+  }
+  .wins-ticker-inner{
+    background:linear-gradient(90deg,rgba(245,166,35,.08),rgba(245,166,35,.04),rgba(245,166,35,.08));
+    border:1px solid rgba(245,166,35,.2);border-radius:10px;
+    padding:10px 20px;display:flex;align-items:center;gap:12px;overflow:hidden;
+  }
+  .wins-label{
+    color:#f5a623;font-size:11px;font-weight:800;letter-spacing:.08em;
+    text-transform:uppercase;white-space:nowrap;flex-shrink:0;
+    border-right:1px solid rgba(255,255,255,.1);padding-right:12px;
+  }
+  .wins-scroll{
+    overflow:hidden;flex:1;
+    mask-image:linear-gradient(90deg,transparent,black 5%,black 95%,transparent);
+  }
+  .wins-track{
+    display:flex;gap:32px;white-space:nowrap;
+    animation:winscroll 35s linear infinite;
+  }
+  @keyframes winscroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+  .win-item{
+    display:inline-flex;align-items:center;gap:6px;
+    color:#e2e8f0;font-size:12px;
+  }
+  .win-player{color:#a78bfa;font-weight:700}
+  .win-amount{color:#4ade80;font-weight:700}
+  .win-multi{
+    background:rgba(245,166,35,.15);color:#f5a623;
+    font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px;
+  }
+
+  /* ── LOADING ── */
+  .loading{
+    display:flex;align-items:center;justify-content:center;
+    grid-column:1/-1;padding:60px;color:#94a3b8;font-size:16px;gap:12px;
+  }
+  .spinner{
+    width:24px;height:24px;border:3px solid rgba(245,166,35,.2);
+    border-top-color:#f5a623;border-radius:50%;animation:spin .8s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+
+
+  .nav-prov-btn{
+    display:flex;align-items:center;gap:6px;
+    padding:6px 14px;border-radius:8px;
+    background:none;border:1px solid rgba(255,255,255,.08);
+    color:#64748b;font-size:12px;font-weight:700;
+    cursor:pointer;font-family:inherit;transition:all .15s;white-space:nowrap;
+  }
+  .nav-prov-btn:hover{background:rgba(255,255,255,.06);color:#94a3b8;}
+  .nav-prov-btn.active{background:rgba(245,166,35,.12);border-color:rgba(245,166,35,.25);color:#f5a623;}
+  .nav-prov-count{font-size:10px;background:rgba(255,255,255,.06);padding:1px 5px;border-radius:4px;}
+  .nav-prov-btn.active .nav-prov-count{background:rgba(245,166,35,.15);color:#f5a623;}
+  /* ── AUTH GATE ── */
+  .auth-gate{
+    display:none;position:fixed;inset:0;z-index:200;
+    background:rgba(5,2,18,.92);backdrop-filter:blur(16px);
+    align-items:center;justify-content:center;
+    flex-direction:column;
+  }
+  .auth-gate.show{display:flex}
+  .auth-box{
+    background:linear-gradient(160deg,#1e0d48 0%,#120630 60%,#0a0220 100%);
+    border:1px solid rgba(245,166,35,.35);border-radius:20px;
+    padding:40px 36px;width:400px;max-width:calc(100vw - 32px);
+    box-shadow:0 0 60px rgba(245,166,35,.12),0 24px 80px rgba(0,0,0,.7);
+    position:relative;
+  }
+  .auth-logo{
+    display:flex;align-items:center;justify-content:center;gap:10px;
+    font-size:26px;font-weight:900;letter-spacing:.05em;
+    background:linear-gradient(135deg,#ffd700,#f5a623,#ff8c00);
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+    margin-bottom:6px;
+  }
+  .auth-logo .acoin{
+    width:38px;height:38px;border-radius:50%;flex-shrink:0;
+    background:radial-gradient(circle at 33% 30%,#fff7cc,#ffd700 35%,#f5a623 65%,#c8821a);
+    box-shadow:0 0 16px #f5a62366;
+    display:flex;align-items:center;justify-content:center;
+    font-size:18px;font-weight:900;color:#7a3a00;
+    -webkit-text-fill-color:#7a3a00;
+  }
+  .auth-sub{text-align:center;color:#6b7280;font-size:13px;margin-bottom:28px;letter-spacing:.05em}
+  .auth-title{text-align:center;color:#e2e8f0;font-size:18px;font-weight:700;margin-bottom:20px}
+  .auth-field{
+    width:100%;padding:13px 16px;border-radius:10px;margin-bottom:12px;
+    background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
+    color:#e2e8f0;font-size:14px;font-family:inherit;outline:none;
+    transition:border-color .2s,box-shadow .2s;
+  }
+  .auth-field:focus{border-color:rgba(245,166,35,.5);box-shadow:0 0 0 3px rgba(245,166,35,.08)}
+  .auth-field::placeholder{color:#4b5563}
+  .auth-submit{
+    width:100%;padding:14px;border-radius:10px;border:none;cursor:pointer;
+    font-size:15px;font-weight:800;font-family:inherit;margin-top:4px;
+    background:linear-gradient(135deg,#f5a623,#e08010);color:#000;
+    box-shadow:0 4px 20px rgba(245,166,35,.35);
+    transition:all .2s;letter-spacing:.03em;
+  }
+  .auth-submit:hover{background:linear-gradient(135deg,#ffd700,#f5a623);transform:translateY(-1px);box-shadow:0 6px 28px rgba(245,166,35,.5)}
+  .auth-submit:active{transform:translateY(0)}
+  .auth-error{
+    color:#f87171;font-size:13px;text-align:center;
+    margin-top:10px;min-height:18px;
+  }
+  .auth-footer{
+    text-align:center;margin-top:18px;
+    color:#4b5563;font-size:12px;line-height:1.6;
+  }
+  .auth-footer a{color:#f5a623;text-decoration:none;font-weight:600}
+  .auth-footer a:hover{text-decoration:underline}
+  .auth-divider{
+    display:flex;align-items:center;gap:12px;margin:16px 0;
+  }
+  .auth-divider hr{flex:1;border:none;border-top:1px solid rgba(255,255,255,.08)}
+  .auth-divider span{color:#374151;font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+  .tg-btn{
+    width:100%;padding:12px;border-radius:10px;border:none;cursor:pointer;
+    font-size:14px;font-weight:700;font-family:inherit;
+    background:linear-gradient(135deg,#229ed9,#1a7fc4);color:#fff;
+    display:flex;align-items:center;justify-content:center;gap:8px;
+    transition:all .2s;box-shadow:0 4px 16px rgba(34,158,217,.25);
+  }
+  .tg-btn:hover{background:linear-gradient(135deg,#2eb8f0,#229ed9);transform:translateY(-1px)}
+  .tg-icon{font-size:18px}
+
+  /* ── LOGIN MODAL ── */
+  .modal-bg{
+    display:none;position:fixed;inset:0;z-index:100;
+    background:rgba(0,0,0,.7);backdrop-filter:blur(4px);
+    align-items:center;justify-content:center;
+  }
+  .modal-bg.open{display:flex}
+  .modal{
+    background:linear-gradient(160deg,#1a0840,#0d0520);
+    border:1px solid rgba(245,166,35,.3);border-radius:16px;
+    padding:32px;width:380px;max-width:calc(100vw - 32px);
+    position:relative;
+  }
+  .modal-close{
+    position:absolute;top:12px;right:12px;
+    background:none;border:none;color:#64748b;font-size:20px;cursor:pointer;
+  }
+  .modal-close:hover{color:#e2e8f0}
+  .modal-title{font-size:22px;font-weight:800;color:#f5a623;margin-bottom:24px;text-align:center}
+  .modal input{
+    width:100%;padding:12px 16px;border-radius:8px;
+    background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
+    color:#e2e8f0;font-size:14px;font-family:inherit;margin-bottom:12px;outline:none;
+    transition:border-color .2s;
+  }
+  .modal input:focus{border-color:rgba(245,166,35,.5)}
+  .modal-btn{
+    width:100%;padding:14px;border-radius:8px;border:none;cursor:pointer;
+    font-size:15px;font-weight:800;margin-top:4px;font-family:inherit;
+    background:linear-gradient(135deg,#f5a623,#e08010);color:#000;
+    transition:all .2s;
+  }
+  .modal-btn:hover{background:linear-gradient(135deg,#ffd700,#f5a623)}
+  .modal-link{text-align:center;margin-top:16px;color:#64748b;font-size:13px}
+  .modal-link a{color:#f5a623;text-decoration:none;font-weight:600}
+
+
+  /* ── LAYOUT ── */
+  .page-layout{position:relative;z-index:5;min-height:calc(100vh - 52px);display:flex;align-items:center;}
+
+  /* ── MAIN CONTENT ── */
+  .main-content{width:100%;padding:0;}
+  /* hide old standalone carousel-wrap if it's outside layout */
+  /* responsive */
+
+  .slot-hover{touch-action:manipulation;
+    position:absolute;inset:0;
+    background:rgba(0,0,0,.5);
+    display:flex;align-items:center;justify-content:center;
+    opacity:0;transition:opacity .18s;
+    pointer-events:none;
+  }
+  .slot-machine:hover .slot-hover{touch-action:manipulation;opacity:1;pointer-events:auto;}
+  .hover-play{
+    background:linear-gradient(135deg,#f5a623,#c8821a);
+    color:#000;font-weight:900;font-size:14px;
+    padding:10px 28px;border-radius:10px;border:none;cursor:pointer;
+    transform:scale(.85);transition:transform .18s;
+    box-shadow:0 4px 20px rgba(245,166,35,.5);
+    font-family:inherit;letter-spacing:.03em;white-space:nowrap;
+  }
+  .slot-machine:hover .hover-play{transform:scale(1);}
+
+  /* Game overlay */
+  #gameOverlay{
+    display:none;position:fixed;inset:0;z-index:9999;
+    background:#0d0820;
+    flex-direction:column;
+  }
+  #gameOverlay.active{display:flex;}
+  #gameOverlayBar{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:10px 20px;background:#1a0840;border-bottom:1px solid rgba(255,255,255,.1);
+    flex-shrink:0;
+  }
+  #gameOverlayTitle{color:#f5a623;font-weight:700;font-size:15px;}
+  #gameOverlayClose{
+    background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);
+    color:#e2e8f0;padding:7px 20px;border-radius:8px;cursor:pointer;
+    font-size:13px;font-family:inherit;transition:background .15s;
+  }
+  #gameOverlayClose:hover{background:rgba(255,255,255,.15);}
+  #gameOverlayFrame{flex:1;border:none;width:100%;height:100%;}
+  #gameOverlayLoading{
+    display:flex;align-items:center;justify-content:center;
+    flex:1;color:#94a3b8;font-size:16px;gap:12px;
+  }
+
+
+  /* ═══════════════════════════════════════════════
+     MOBILE RESPONSIVE
+  ═══════════════════════════════════════════════ */
+  @media (max-width: 768px) {
+
+    /* NAV: compact */
+    nav {
+      padding: 0 12px;
+      height: 52px;
+      gap: 0;
+      flex-wrap: nowrap;
+    }
+    .nav-logo { font-size: 16px; margin-right: 8px; }
+    .nav-logo .coin { width: 26px; height: 26px; font-size: 11px; }
+
+    /* Hide provider filter from nav on mobile — move below */
+    #navProviders { display: none !important; }
+
+    /* User info: compact */
+    #userInfo {
+      gap: 8px;
+      margin-left: auto;
+    }
+    #userInfo > div:first-child { display: none; } /* hide avatar+name */
+    #navBalance { font-size: 13px !important; }
+
+    /* Provider filter row below nav */
+    #mobileProvRow {
+      display: flex !important;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      gap: 6px;
+      padding: 8px 12px;
+      background: rgba(10,5,28,.95);
+      border-bottom: 1px solid rgba(245,166,35,.1);
+      position: relative; z-index: 9;
+    }
+    #mobileProvRow::-webkit-scrollbar { display: none; }
+    #mobileProvRow .nav-prov-btn {
+      flex-shrink: 0;
+      padding: 5px 10px;
+      font-size: 11px;
+    }
+
+    /* CAROUSEL: 2 columns */
+    .carousel-wrap { padding: 0 32px; }
+    .slot-card { flex: 0 0 calc(50% - 6px) !important; }
+
+    /* Smaller arrows */
+    .arrow-tri {
+      border-top-width: 13px !important;
+      border-bottom-width: 13px !important;
+    }
+    .arrow-left .arrow-tri { border-right-width: 22px !important; }
+    .arrow-right .arrow-tri { border-left-width: 22px !important; }
+    .arrow-left { left: 0; }
+    .arrow-right { right: 0; }
+
+    /* Play button */
+    .play-outer { font-size: 12px; padding: 8px; margin-top: 6px; }
+
+    /* Game overlay */
+    #gameOverlayBar {
+      padding: 8px 12px;
+      font-size: 13px;
+    }
+
+    /* Ticker */
+    .wins-ticker { margin: 12px auto 0; padding: 0 10px; }
+    .wins-ticker-inner { padding: 7px 10px; gap: 8px; }
+    .wins-label { font-size: 10px; }
+    .win-item { font-size: 11px; }
+
+    /* View all */
+    .view-all-wrap { padding: 0 10px; margin: 10px auto 0; }
+
+    /* Auth modal */
+    .auth-box { width: 92vw; max-width: 360px; padding: 26px 18px; }
+    .auth-box h2 { font-size: 19px; }
+
+    /* Page layout padding */
+    .page-layout { padding-top: 8px; }
+    .main-content { padding: 0; }
+  }
+
+  @media (max-width: 420px) {
+    .slot-card { flex: 0 0 calc(50% - 5px) !important; }
+    .carousel-wrap { padding: 0 28px; }
+    .carousel-track { gap: 8px; }
+  }
+
+</style>
+</head>
+<body>
+
+<!-- Background -->
+<div class="bg-scene">
+  <div class="sparkles" id="sparkles"></div>
+</div>
+
+<!-- NAV -->
+<nav>
+  <a href="/land" class="nav-logo"><div class="coin">$</div>CRYPTORA</a>
+  <div id="navProviders" style="display:flex;align-items:center;gap:4px;margin-left:20px;flex:1;">
+    <button class="nav-prov-btn active" onclick="filterProvider('all',this)" data-pid="all">All Games <span id="navCountAll" class="nav-prov-count">—</span></button>
+    <div id="navProviderBtns" style="display:flex;gap:4px;"><!-- filled by JS --></div>
+  </div>
+  <div id="userInfo" style="display:flex;align-items:center;gap:16px;margin-left:auto;">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div style="width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#2d1060,#1a0840);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#f5a623;border:1px solid rgba(245,166,35,.2);" id="userAvatar">?</div>
+      <div>
+        <div style="font-size:13px;font-weight:700;color:#e2e8f0;" id="navUsername">—</div>
+        <div style="font-size:11px;color:#4b5563;">Player</div>
+      </div>
+    </div>
+    <div style="background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.2);border-radius:8px;padding:6px 14px;text-align:center;">
+      <div style="font-size:10px;color:#4b5563;font-weight:700;letter-spacing:.05em;text-transform:uppercase;">Balance</div>
+      <div style="font-size:15px;font-weight:900;color:#f5a623;" id="navBalance">—</div>
+    </div>
+    <button onclick="doLandLogout()" style="background:none;border:1px solid rgba(255,255,255,.1);color:#64748b;font-size:12px;padding:6px 12px;border-radius:7px;cursor:pointer;font-family:inherit;transition:all .15s;" onmouseover="this.style.color='#94a3b8'" onmouseout="this.style.color='#64748b'">Logout</button>
+  </div>
+</nav>
+<!-- MOBILE PROVIDER FILTER ROW -->
+<div id="mobileProvRow" style="display:none"></div>
+<!-- GAME OVERLAY -->
+<div id="gameOverlay">
+  <div id="gameOverlayBar">
+    <span id="gameOverlayTitle">Game</span>
+    <button id="gameOverlayClose" onclick="closeGameOverlay()">✕ Close</button>
+  </div>
+  <div id="gameOverlayLoading"><div class="spinner"></div> Launching game...</div>
+  <iframe id="gameOverlayFrame" src="" allowfullscreen style="display:none;"></iframe>
+</div>
+
+<div class="page-layout">
+  <div class="main-content">
+    <!-- CAROUSEL -->
+    <div class="carousel-wrap" id="carouselWrap">
+      <button class="arrow-btn arrow-left" onclick="slide(-1)"><div class="arrow-tri"></div></button>
+      <div class="carousel-viewport" id="carouselViewport">
+        <div class="carousel-track" id="track">
+          <div class="loading"><div class="spinner"></div> Loading games...</div>
+        </div>
+      </div>
+      <button class="arrow-btn arrow-right" onclick="slide(1)"><div class="arrow-tri"></div></button>
+    </div>
+  </div>
+</div>
+
+<!-- LOGIN MODAL -->
+<div class="modal-bg" id="loginModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <div class="modal-title">🎰 Play Now</div>
+    <input type="email" placeholder="Email" id="loginEmail">
+    <input type="password" placeholder="Password" id="loginPassword">
+    <button class="modal-btn" onclick="doLogin()">Sign In & Play</button>
+    <div class="modal-link">No account? <a href="/Home">Register on Cryptora</a></div>
+  </div>
+</div>
+
+<!-- AUTH GATE -->
+<div class="auth-gate" id="authGate">
+  <div class="auth-box">
+    <div class="auth-logo"><div class="acoin">$</div> CRYPTORA</div>
+    <div class="auth-sub">CRYPTO CASINO · MEMBERS ONLY</div>
+    <div class="auth-title">Sign in to continue</div>
+    <input class="auth-field" type="text" id="gateEmail" placeholder="Username" autocomplete="username">
+    <input class="auth-field" type="password" id="gatePass" placeholder="Password" autocomplete="current-password">
+    <button class="auth-submit" onclick="gateLogin()">Sign In →</button>
+    <div class="auth-error" id="gateError"></div>
+  </div>
+</div>
+
+<script>
+// ── Sparkles ──
+(function(){
+  const c = document.getElementById('sparkles');
+  for(let i=0;i<40;i++){
+    const s = document.createElement('div');
+    s.className='spark';
+    s.style.left=Math.random()*100+'%';
+    s.style.top=Math.random()*100+'%';
+    s.style.animationDelay=Math.random()*3+'s';
+    s.style.animationDuration=(2+Math.random()*3)+'s';
+    c.appendChild(s);
+  }
+})();
+
+// ── User Info ──
+async function loadUserInfo(){
+  const token = localStorage.getItem('land_token');
+  if(!token) return;
+  try{
+    const r = await fetch('/api/operator/player-me',{headers:{'Authorization':'Bearer '+token}});
+    if(!r.ok) return;
+    const p = await r.json();
+    document.getElementById('navUsername').textContent = p.username;
+    document.getElementById('navBalance').textContent = '$' + parseFloat(p.balance).toFixed(2) + ' ' + (p.currency||'USD');
+    const av = document.getElementById('userAvatar');
+    if(av) av.textContent = p.username.charAt(0).toUpperCase();
+  }catch(e){}
+}
+
+function doLandLogout(){
+  localStorage.removeItem('land_token');
+  location.reload();
+}
+
+// ── Providers ──
+let providers = [];
+let currentProvider = 'all';
+let showingAll = false;
+
+async function loadProviders(){
+  try{
+    const token = localStorage.getItem('land_token');
+    const r = await fetch('/api/operator/my-providers', {
+      headers: token ? {'Authorization': 'Bearer ' + token} : {}
+    });
+    if(!r.ok) throw new Error('bad response');
+    providers = await r.json();
+    renderProviderList();
+  }catch(e){
+    // Fallback to all providers
+    try{
+      const r2 = await fetch('/api/entities/GameProvider?_limit=50');
+      providers = await r2.json();
+      renderProviderList();
+    }catch(e2){}
+  }
+}
+
+function renderProviderList(){
+  const colors = ['#f5a623','#8b5cf6','#22c55e','#3b82f6','#ef4444','#ec4899'];
+  const el = document.getElementById('providerList');
+  // Also update nav buttons
+  const navEl = document.getElementById('navProviderBtns');
+  if(navEl) {
+    const colors = ['#f5a623','#8b5cf6','#22c55e','#3b82f6','#ef4444','#ec4899'];
+    navEl.innerHTML = providers.map(function(p,i){
+      const col = colors[i % colors.length];
+      const count = allGames.filter(function(g){ return g.provider_id===p.id||g.provider===p.name||g.provider_name===p.name; }).length;
+      return '<button class="nav-prov-btn" id="navprov-' + p.id + '" onclick="filterProvider(this.dataset.pid,this)" data-pid="' + p.id + '">' +
+        '<span style="color:' + col + ';font-size:11px;">●</span>' +
+        esc(p.name) +
+        '<span class="nav-prov-count">' + (count||'-') + '</span>' +
+        '</button>';
+    }).join('');
+  }
+  if(!el){ return; }
+  el.innerHTML = providers.map(function(p,i){
+    const col = colors[i % colors.length];
+    const letter = p.name.charAt(0).toUpperCase();
+    const count = allGames.filter(function(g){ return g.provider_id===p.id||g.provider===p.name||g.provider_name===p.name; }).length;
+    const pid = p.id;
+    return '<button class="prov-btn" id="prov-' + pid + '" onclick="filterProvider(this.dataset.pid,this)" data-pid="' + pid + '">' +
+      '<div class="prov-icon" style="background:linear-gradient(135deg,' + col + '22,' + col + '11);border:1px solid ' + col + '33;color:' + col + ';">' + letter + '</div>' +
+      '<span>' + esc(p.name) + '</span>' +
+      '<span class="prov-count" id="count-' + pid + '">' + (count||'-') + '</span>' +
+      '</button>';
+  }).join('');
+}
+
+function filterProvider(provId, btn){
+  currentProvider = provId;
+  showingAll = false;
+  page = 0;
+  document.querySelectorAll('.nav-prov-btn').forEach(function(b){ b.classList.remove('active'); });
+  document.querySelectorAll('.prov-btn').forEach(function(b){ b.classList.remove('active'); });
+  if(btn) btn.classList.add('active');
+  const matchNav = document.querySelector('[id="navprov-'+provId+'"]') || document.querySelector('[data-pid="'+provId+'"]');
+  if(matchNav && matchNav !== btn) matchNav.classList.add('active');
+  const fl = document.getElementById('filterLabel'); if(fl) fl.textContent = provId === 'all' ? 'All Games' : (providers.find(function(p){return p.id===provId;})||{name:provId}).name;
+  const track = document.getElementById('track');
+  if(track){ track.style.opacity='0'; track.style.transition='opacity .15s'; }
+  setTimeout(function(){
+    renderPage();
+    if(track){ requestAnimationFrame(function(){ track.style.opacity='1'; }); }
+  }, 150);
+}
+
+function showAll(){ page=0; renderPage(); }
+
+// ── Games ──
+let allGames = [];
+let page = 0;
+const PER_PAGE = 4;
+const AMOUNTS = [
+  '1,375,200.00','511,650.00','888,000.00','695,400.00',
+  '2,100,500.00','340,800.00','1,050,000.00','780,300.00',
+  '430,000.00','925,600.00','1,680,000.00','560,400.00'
+];
+const BADGES = ['jackpot','jackpot','slot','slot','hot','jackpot','slot','jackpot'];
+
+async function loadGames(){
+  try{
+    const token = localStorage.getItem('land_token');
+    const r = await fetch('/api/operator/my-games', {
+      headers: token ? {'Authorization': 'Bearer ' + token} : {}
+    });
+    if(!r.ok) throw new Error('status ' + r.status);
+    const data = await r.json();
+    allGames = Array.isArray(data) ? data.filter(function(g){return g.thumbnail;}) : [];
+    renderPage();
+  }catch(e){
+    document.getElementById('track').innerHTML=
+      '<div class="loading" style="color:#ef4444">Failed to load games</div>';
+  }
+}
+
+function renderPage(){
+  const track = document.getElementById('track');
+  // Filter by provider
+  let filtered = allGames;
+  if(currentProvider !== 'all'){
+    const prov = providers.find(function(p){return p.id===currentProvider;});
+    const pname = prov ? prov.name.toLowerCase() : '';
+    filtered = allGames.filter(function(g){
+      return (g.provider_id===currentProvider)||(g.provider&&g.provider.toLowerCase().includes(pname))||(g.provider_name&&g.provider_name.toLowerCase().includes(pname));
+    });
+  }
+  // Update nav counts
+  const navCountAll = document.getElementById('navCountAll');
+  if(navCountAll) navCountAll.textContent = allGames.length;
+  providers.forEach(function(p){
+    const pname = p.name.toLowerCase();
+    const cnt = allGames.filter(function(g){
+      return (g.provider_id===p.id)||(g.provider&&g.provider.toLowerCase().includes(pname))||(g.provider_name&&g.provider_name.toLowerCase().includes(pname));
+    }).length;
+    const navBtn = document.getElementById('navprov-'+p.id);
+    if(navBtn){const cntEl=navBtn.querySelector('.nav-prov-count');if(cntEl)cntEl.textContent=cnt||'-';}
+  });
+
+  // 2 rows × 4 cols = 8 per page
+  const PER_PAGE = 8;
+  const totalPages = Math.ceil(filtered.length / PER_PAGE);
+  if(page >= totalPages) page = 0;
+  const start = page * PER_PAGE;
+  const games = filtered.slice(start, start + PER_PAGE);
+  if(!games.length){
+    track.style.transform = 'translateX(0)';
+    track.innerHTML = '<div class="loading" style="color:#ef4444;padding:60px;">No games for this provider</div>';
+    return;
+  }
+
+  // Render as 2 rows × 4 cols using flex-wrap
+  track.style.flexWrap = 'wrap';
+  track.style.transform = 'translateX(0)';
+  track.innerHTML = games.map(function(g){
+    var gid = g.id, gtitle = esc(g.title), gthumb = esc(g.thumbnail);
+    return '<div class="slot-card">' +
+      '<div class="slot-machine" data-gid="' + gid + '" onclick="playGame(this.dataset.gid,this.dataset.gtitle)" data-gtitle="' + gtitle + '">' +
+        '<div class="slot-screen">' +
+          '<img src="' + gthumb + '" alt="' + gtitle + '" loading="lazy" ' +
+            'style="width:100%;height:100%;object-fit:cover;object-position:center center;">' +
+          '<div class="slot-hover">' +
+            '<button class="hover-play" data-gid="' + gid + '" data-gtitle="' + gtitle + '" onclick="event.stopPropagation();playGame(this.dataset.gid,this.dataset.gtitle)">&#9654; Play</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+
+function slide(dir){
+  let filtered = allGames;
+  if(currentProvider !== 'all'){
+    const prov = providers.find(function(p){return p.id===currentProvider;});
+    const pname = prov ? prov.name.toLowerCase() : '';
+    filtered = allGames.filter(function(g){
+      return (g.provider_id===currentProvider)||(g.provider&&g.provider.toLowerCase().includes(pname))||(g.provider_name&&g.provider_name.toLowerCase().includes(pname));
+    });
+  }
+  const PER_PAGE = 8;
+  const totalPages = Math.ceil(filtered.length / PER_PAGE);
+  const viewport = document.getElementById('carouselViewport');
+  const track = document.getElementById('track');
+  const slideDir = dir > 0 ? -1 : 1;
+  // Animate out
+  track.style.transition = 'transform .35s cubic-bezier(.4,0,.2,1)';
+  track.style.transform = 'translateX(' + (slideDir * 60) + 'px)';
+  track.style.opacity = '0.3';
+  setTimeout(function(){
+    page = ((page + dir) % totalPages + totalPages) % totalPages;
+    track.style.transition = 'none';
+    track.style.transform = 'translateX(' + (-slideDir * 60) + 'px)';
+    track.style.opacity = '0.3';
+    renderPage();
+    requestAnimationFrame(function(){
+      requestAnimationFrame(function(){
+        track.style.transition = 'transform .35s cubic-bezier(.4,0,.2,1), opacity .35s';
+        track.style.transform = 'translateX(0)';
+        track.style.opacity = '1';
+      });
+    });
+  }, 200);
+}
+
+
+function playGame(id, title){
+  const overlay = document.getElementById('gameOverlay');
+  const loading = document.getElementById('gameOverlayLoading');
+  const frame   = document.getElementById('gameOverlayFrame');
+  const titleEl = document.getElementById('gameOverlayTitle');
+  titleEl.textContent = title || 'Game';
+  loading.style.display = 'flex';
+  frame.style.display = 'none';
+  frame.src = '';
+  overlay.classList.add('active');
+  document.body.style.overflow = 'hidden';
+  setInGame(true);
+  stopBalancePoll();
+
+  const token = localStorage.getItem('land_token');
+  fetch('/api/operator/launch-game', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+    body: JSON.stringify({ gameId: id })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d){
+    if (d.launchUrl) {
+      frame.src = d.launchUrl;
+      frame.onload = function(){ loading.style.display='none'; frame.style.display='block'; };
+      // Fallback show after 3s
+      setTimeout(function(){ loading.style.display='none'; frame.style.display='block'; }, 3000);
+    } else {
+      loading.innerHTML = '<span style="color:#ef4444">Error: '+(d.error||'Could not launch game')+'</span>';
+    }
+  })
+  .catch(function(e){
+    loading.innerHTML = '<span style="color:#ef4444">Connection error</span>';
+  });
+}
+
+function closeGameOverlay(){
+  setInGame(false).then(function(){ window.location.href='https://cryptora.live/land'; });
+}
+
+function closeModal(){ document.getElementById('loginModal').classList.remove('open') }
+
+async function doLogin(){
+  const email = document.getElementById('loginEmail').value;
+  const pass = document.getElementById('loginPassword').value;
+  try{
+    const r = await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:pass})});
+    const d = await r.json();
+    if(d.token){ localStorage.setItem('auth_token',d.token); window.location.href='/Home'; }
+    else alert(d.error||'Login failed');
+  }catch(e){ alert('Error: '+e.message); }
+}
+
+
+// ── AUTH GATE LOGIC ──
+async function checkAuth(){
+  const token = localStorage.getItem('land_token');
+  if(!token){ showGate(); return false; }
+  try{
+    const r = await fetch('/api/operator/player-me', {headers:{'Authorization':'Bearer '+token}});
+    if(r.ok){ return true; }
+    else{ localStorage.removeItem('land_token'); showGate(); return false; }
+  }catch(e){ showGate(); return false; }
+}
+
+function showGate(){
+  document.getElementById('authGate').classList.add('show');
+}
+
+async function gateLogin(){
+  const username = document.getElementById('gateEmail').value.trim();
+  const pass     = document.getElementById('gatePass').value;
+  const errEl    = document.getElementById('gateError');
+  const btn      = document.querySelector('.auth-submit');
+  if(!username || !pass){ errEl.textContent='Enter username and password'; return; }
+  btn.textContent='Signing in...'; btn.disabled=true; errEl.textContent='';
+  try{
+    const r = await fetch('/api/operator/player-login',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({username, password:pass})
+    });
+    const d = await r.json();
+    if(d.token){
+      localStorage.setItem('land_token', d.token);
+      document.getElementById('authGate').classList.remove('show');
+      { loadUserInfo(); loadProviders(); loadGames(); startBalancePoll(); }
+    } else {
+      errEl.textContent = d.error || 'Invalid credentials';
+    }
+  }catch(e){ errEl.textContent='Connection error. Try again.'; }
+  finally{ btn.textContent='Sign In →'; btn.disabled=false; }
+}
+
+
+// Enter key support
+document.getElementById('gatePass').addEventListener('keydown', e => {
+  if(e.key==='Enter') gateLogin();
+});
+document.getElementById('gateEmail').addEventListener('keydown', e => {
+  if(e.key==='Enter') document.getElementById('gatePass').focus();
+});
+
+// Init
+checkAuth().then(ok => { if(ok){ loadUserInfo(); loadProviders(); loadGames(); startBalancePoll(); } });
+
+// ── Balance polling ──────────────────────────────────────────────────────────
+let balancePollInterval = null;
+
+function startBalancePoll(){
+  if(balancePollInterval) return;
+  balancePollInterval = setInterval(refreshBalance, 5000);
+}
+
+function stopBalancePoll(){
+  if(balancePollInterval){ clearInterval(balancePollInterval); balancePollInterval = null; }
+}
+
+async function refreshBalance(){
+  const token = localStorage.getItem('land_token');
+  if(!token) return;
+  try {
+    const r = await fetch('/api/operator/player-balance', {
+      headers: {'Authorization': 'Bearer ' + token}
+    });
+    if(r.ok){
+      const d = await r.json();
+      const balEl = document.getElementById('navBalance');
+      if(balEl && d.balance !== undefined){
+        const newBal = '$' + parseFloat(d.balance).toFixed(2) + ' USD';
+        if(balEl.textContent !== newBal){
+          balEl.textContent = newBal;
+          balEl.style.transition = 'color .3s';
+          balEl.style.color = '#f5a623';
+          setTimeout(function(){ balEl.style.color = ''; }, 800);
+        }
+      }
+    }
+  } catch(e){}
+}
+
+async function setInGame(flag){
+  const token = localStorage.getItem('land_token');
+  if(!token) return;
+  try {
+    await fetch('/api/operator/player-status', {
+      method: 'PATCH',
+      headers: {'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body: JSON.stringify({in_game: flag})
+    });
+  } catch(e){}
+}
+
+function esc(s){return String(s||'').replace(/[&<>"']/g,function(x){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x];});}
+
+// Mobile prov row visibility
+function handleMobileResize() {
+  const mob = document.getElementById('mobileProvRow');
+  if (!mob) return;
+  mob.style.display = window.innerWidth <= 768 ? 'flex' : 'none';
+}
+window.addEventListener('resize', handleMobileResize);
+document.addEventListener('DOMContentLoaded', handleMobileResize);
+
+</script>
+
+</body>
+</html>
