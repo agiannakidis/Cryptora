@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cryptora — Affiliate Dashboard</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0e1a;color:#e2e8f0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh}
+:root{--gold:#f5a623;--blue:#3b82f6;--green:#22c55e;--red:#ef4444;--card:#111827;--border:rgba(255,255,255,.07)}
+
+/* ── Header ── */
+header{background:#111827;border-bottom:1px solid var(--border);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.logo{font-size:18px;font-weight:700;color:var(--gold);letter-spacing:.5px}
+.hright{display:flex;align-items:center;gap:12px}
+.user-badge{font-size:13px;color:#64748b}
+.user-badge span{color:#94a3b8;font-weight:600}
+.btn-logout{background:none;border:1px solid var(--border);color:#64748b;font-size:12px;padding:5px 12px;border-radius:6px;cursor:pointer;font-family:inherit;transition:color .15s}
+.btn-logout:hover{color:#94a3b8}
+
+/* ── Layout ── */
+.layout{display:flex;min-height:calc(100vh - 56px)}
+nav{width:200px;background:#0d1117;border-right:1px solid var(--border);padding:16px 0;flex-shrink:0}
+.ntab{display:block;width:100%;text-align:left;background:none;border:none;color:#64748b;font-size:13px;padding:10px 20px;cursor:pointer;font-family:inherit;transition:all .15s;border-left:3px solid transparent}
+.ntab:hover{color:#94a3b8;background:rgba(255,255,255,.03)}
+.ntab.active{color:var(--gold);background:rgba(245,166,35,.06);border-left-color:var(--gold)}
+main{flex:1;padding:24px;overflow:auto}
+
+/* ── Auth page ── */
+#authPage{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0a0e1a}
+.auth-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:40px;width:100%;max-width:400px}
+.auth-title{font-size:22px;font-weight:700;color:#f1f5f9;margin-bottom:8px}
+.auth-sub{font-size:14px;color:#64748b;margin-bottom:28px}
+.field{margin-bottom:16px}
+.field label{display:block;font-size:12px;color:#64748b;margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.field input{width:100%;background:#1e2736;border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:#f1f5f9;font-size:14px;font-family:inherit;outline:none;transition:border-color .15s}
+.field input:focus{border-color:var(--gold)}
+.btn-primary{width:100%;background:var(--gold);color:#0a0e1a;border:none;border-radius:8px;padding:11px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:opacity .15s}
+.btn-primary:hover{opacity:.9}
+.auth-msg{font-size:13px;margin-top:12px;padding:10px 14px;border-radius:8px;display:none}
+.auth-msg.error{background:rgba(239,68,68,.1);color:#ef4444;display:block}
+.auth-msg.info{background:rgba(59,130,246,.1);color:#93c5fd;display:block}
+.auth-switch{text-align:center;margin-top:20px;font-size:13px;color:#64748b}
+.auth-switch a{color:var(--gold);cursor:pointer;text-decoration:none}
+
+/* ── Cards ── */
+.section-title{font-size:16px;font-weight:600;color:#f1f5f9;margin-bottom:16px}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:24px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px}
+.card-label{font-size:11px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.card-value{font-size:24px;font-weight:700;color:#f1f5f9}
+.card-value.green{color:var(--green)}
+.card-value.gold{color:var(--gold)}
+
+/* ── Ref link box ── */
+.ref-box{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:24px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.ref-url{flex:1;background:#1e2736;border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:#93c5fd;font-size:13px;font-family:monospace;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.btn-copy{background:rgba(59,130,246,.15);border:1px solid rgba(59,130,246,.3);color:#93c5fd;font-size:12px;padding:8px 16px;border-radius:8px;cursor:pointer;font-family:inherit;font-weight:600;flex-shrink:0;transition:all .15s}
+.btn-copy:hover{background:rgba(59,130,246,.25)}
+
+/* ── Tables ── */
+.tbl-wrap{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:24px}
+.tbl-head{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.tbl-head-title{font-size:13px;font-weight:600;color:#94a3b8}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:10px 18px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--border)}
+td{padding:10px 18px;border-bottom:1px solid rgba(255,255,255,.04);color:#cbd5e1}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.02)}
+.empty{text-align:center;padding:40px;color:#475569;font-size:14px}
+.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}
+.badge.green{background:rgba(34,197,94,.1);color:#4ade80}
+.badge.red{background:rgba(239,68,68,.1);color:#f87171}
+.badge.yellow{background:rgba(245,166,35,.1);color:var(--gold)}
+.badge.blue{background:rgba(59,130,246,.1);color:#93c5fd}
+
+/* ── Period filter ── */
+.period-bar{display:flex;align-items:center;gap:8px;margin-bottom:20px;flex-wrap:wrap}
+.period-bar input[type=date]{background:#1e2736;border:1px solid var(--border);border-radius:8px;padding:7px 12px;color:#e2e8f0;font-size:13px;font-family:inherit;outline:none}
+.btn-period{background:#1e2736;border:1px solid var(--border);color:#64748b;font-size:12px;padding:7px 14px;border-radius:8px;cursor:pointer;font-family:inherit;transition:all .15s}
+.btn-period:hover,.btn-period.active{background:rgba(245,166,35,.1);border-color:rgba(245,166,35,.3);color:var(--gold)}
+.btn-sm{background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.2);color:#93c5fd;font-size:12px;padding:6px 14px;border-radius:7px;cursor:pointer;font-family:inherit;font-weight:600}
+
+/* ── Apply button ── */
+.toast{position:fixed;bottom:24px;right:24px;background:#1e2736;border:1px solid var(--border);border-radius:10px;padding:12px 20px;font-size:13px;color:#94a3b8;box-shadow:0 8px 32px rgba(0,0,0,.4);transform:translateY(80px);opacity:0;transition:all .3s;z-index:999}
+.toast.show{transform:translateY(0);opacity:1}
+
+/* ── Sections ── */
+.section{display:none}
+.section.active{display:block}
+</style>
+</head>
+<body>
+
+<!-- AUTH -->
+<div id="authPage">
+  <div class="auth-card">
+    <div class="auth-title">🎯 Affiliate Portal</div>
+    <div class="auth-sub" id="authSub">Sign in to your affiliate account</div>
+    <div id="loginForm">
+      <div class="field"><label>Email</label><input type="email" id="loginEmail" placeholder="you@example.com" autocomplete="email"></div>
+      <div class="field"><label>Password</label><input type="password" id="loginPass" placeholder="••••••••"></div>
+      <button class="btn-primary" onclick="doLogin()">Sign In</button>
+      <div class="auth-msg" id="loginMsg"></div>
+      <div class="auth-switch">Don't have an account? <a onclick="showReg()">Apply as affiliate</a></div>
+    </div>
+    <div id="regForm" style="display:none">
+      <div class="field"><label>Name</label><input type="text" id="regName" placeholder="Your name"></div>
+      <div class="field"><label>Email</label><input type="email" id="regEmail" placeholder="you@example.com"></div>
+      <div class="field"><label>Password</label><input type="password" id="regPass" placeholder="min 8 chars"></div>
+      <div class="field"><label>Postback URL (optional)</label><input type="url" id="regPostback" placeholder="https://yourtracker.com/postback"></div>
+      <button class="btn-primary" onclick="doRegister()">Create Account & Apply</button>
+      <div class="auth-msg" id="regMsg"></div>
+      <div class="auth-switch">Already have an account? <a onclick="showLogin()">Sign in</a></div>
+    </div>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="appPage" style="display:none">
+  <header>
+    <div class="logo">🎯 Cryptora Affiliates</div>
+    <div class="hright">
+      <div class="user-badge">Logged in as <span id="hUsername">—</span></div>
+      <button class="btn-logout" onclick="doLogout()">Sign Out</button>
+    </div>
+  </header>
+  <div class="layout">
+    <nav>
+      <button class="ntab active" onclick="showTab('overview')">📊 Overview</button>
+      <button class="ntab" onclick="showTab('clicks')">🖱 Clicks</button>
+      <button class="ntab" onclick="showTab('players')">👥 Players</button>
+      <button class="ntab" onclick="showTab('earnings')">💰 Earnings</button>
+      <button class="ntab" onclick="showTab('links')">🔗 My Links</button>
+    </nav>
+    <main>
+
+      <!-- OVERVIEW -->
+      <div class="section active" id="sec-overview">
+        <div class="section-title">Overview</div>
+        <div class="period-bar">
+          <input type="date" id="ovFrom">
+          <input type="date" id="ovTo">
+          <button class="btn-period active" onclick="setPeriod('today',this)">Today</button>
+          <button class="btn-period" onclick="setPeriod('week',this)">Week</button>
+          <button class="btn-period" onclick="setPeriod('month',this)">Month</button>
+          <button class="btn-period" onclick="setPeriod('all',this)">All Time</button>
+          <button class="btn-sm" onclick="loadOverview()">Apply</button>
+        </div>
+        <div class="cards">
+          <div class="card"><div class="card-label">Clicks</div><div class="card-value" id="ov-clicks">—</div></div>
+          <div class="card"><div class="card-label">Registrations</div><div class="card-value" id="ov-regs">—</div></div>
+          <div class="card"><div class="card-label">Depositors</div><div class="card-value" id="ov-deps">—</div></div>
+          <div class="card"><div class="card-label">GGR</div><div class="card-value gold" id="ov-ggr">—</div></div>
+          <div class="card"><div class="card-label">Commission</div><div class="card-value green" id="ov-comm">—</div></div>
+          <div class="card"><div class="card-label">Balance</div><div class="card-value gold" id="ov-bal">—</div></div>
+        </div>
+        <div class="tbl-wrap">
+          <div class="tbl-head"><span class="tbl-head-title">Daily Breakdown</span></div>
+          <table><thead><tr><th>Date</th><th>Clicks</th><th>Conversions</th><th>GGR</th><th>Commission</th></tr></thead>
+          <tbody id="ov-daily"></tbody></table>
+        </div>
+      </div>
+
+      <!-- CLICKS -->
+      <div class="section" id="sec-clicks">
+        <div class="section-title">Click Statistics</div>
+        <div class="period-bar">
+          <input type="date" id="clFrom">
+          <input type="date" id="clTo">
+          <button class="btn-period active" onclick="setPeriodClicks('month',this)">Month</button>
+          <button class="btn-period" onclick="setPeriodClicks('all',this)">All Time</button>
+          <button class="btn-sm" onclick="loadClicks()">Apply</button>
+        </div>
+        <div class="cards">
+          <div class="card"><div class="card-label">Total Clicks</div><div class="card-value" id="cl-total">—</div></div>
+          <div class="card"><div class="card-label">Conversions</div><div class="card-value green" id="cl-conv">—</div></div>
+          <div class="card"><div class="card-label">Conv. Rate</div><div class="card-value" id="cl-rate">—</div></div>
+        </div>
+        <div class="tbl-wrap">
+          <div class="tbl-head"><span class="tbl-head-title">Clicks by Day / Sub1</span></div>
+          <table><thead><tr><th>Date</th><th>Sub1</th><th>Clicks</th><th>Conversions</th><th>Conv %</th></tr></thead>
+          <tbody id="cl-rows"></tbody></table>
+        </div>
+      </div>
+
+      <!-- PLAYERS -->
+      <div class="section" id="sec-players">
+        <div class="section-title">Referred Players</div>
+        <div class="tbl-wrap">
+          <table><thead><tr><th>Player</th><th>Status</th><th>Registered</th><th>Total Wagered</th><th>GGR</th><th>First Deposit</th></tr></thead>
+          <tbody id="pl-rows"></tbody></table>
+        </div>
+      </div>
+
+      <!-- EARNINGS -->
+      <div class="section" id="sec-earnings">
+        <div class="section-title">Earnings History</div>
+        <div class="cards">
+          <div class="card"><div class="card-label">Total Earned</div><div class="card-value gold" id="ea-total">—</div></div>
+          <div class="card"><div class="card-label">Total Paid</div><div class="card-value" id="ea-paid">—</div></div>
+          <div class="card"><div class="card-label">Balance</div><div class="card-value green" id="ea-bal">—</div></div>
+          <div class="card"><div class="card-label">RevShare %</div><div class="card-value" id="ea-pct">—</div></div>
+        </div>
+        <div class="tbl-wrap">
+          <table><thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Description</th></tr></thead>
+          <tbody id="ea-rows"></tbody></table>
+        </div>
+      </div>
+
+      <!-- LINKS -->
+      <div class="section" id="sec-links">
+        <div class="section-title">My Referral Links</div>
+        <div class="ref-box">
+          <div class="ref-url" id="refUrl">—</div>
+          <button class="btn-copy" onclick="copyRef()">Copy Link</button>
+        </div>
+        <div class="tbl-wrap">
+          <div class="tbl-head"><span class="tbl-head-title">Sub-tracking links (add ?sub1=source)</span></div>
+          <table><thead><tr><th>Source</th><th>Link</th><th>Action</th></tr></thead>
+          <tbody id="sub-rows"></tbody></table>
+        </div>
+        <div class="card" style="margin-top:16px">
+          <div class="card-label" style="margin-bottom:12px">Generate Sub1 Link</div>
+          <div style="display:flex;gap:8px">
+            <input type="text" id="sub1Input" placeholder="e.g. google, telegram, twitter" style="flex:1;background:#1e2736;border:1px solid var(--border);border-radius:8px;padding:9px 14px;color:#f1f5f9;font-size:13px;font-family:inherit;outline:none">
+            <button class="btn-sm" onclick="genSub1()">Generate</button>
+          </div>
+          <div id="sub1Result" style="margin-top:10px;display:none">
+            <div class="ref-url" id="sub1Url" style="margin-bottom:8px">—</div>
+            <button class="btn-copy" onclick="copySub1()">Copy</button>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = '/api';
+let token = localStorage.getItem('aff_token');
+let meData = null;
+let refCode = '';
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+function showLogin(){ document.getElementById('loginForm').style.display=''; document.getElementById('regForm').style.display='none'; document.getElementById('authSub').textContent='Sign in to your affiliate account'; }
+function showReg()  { document.getElementById('loginForm').style.display='none'; document.getElementById('regForm').style.display=''; document.getElementById('authSub').textContent='Apply as a new affiliate'; }
+
+async function doLogin(){
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass  = document.getElementById('loginPass').value;
+  const msg   = document.getElementById('loginMsg');
+  msg.className='auth-msg'; msg.textContent='';
+  if(!email||!pass){ msg.className='auth-msg error'; msg.textContent='Fill all fields'; return; }
+  try {
+    const r = await fetch(`${API}/auth/login`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:pass})});
+    const d = await r.json();
+    if(!r.ok){ msg.className='auth-msg error'; msg.textContent=d.error||'Login failed'; return; }
+    token = d.token;
+    localStorage.setItem('aff_token', token);
+    await initApp();
+  } catch(e){ msg.className='auth-msg error'; msg.textContent='Network error'; }
+}
+
+async function doRegister(){
+  const name  = document.getElementById('regName').value.trim();
+  const email = document.getElementById('regEmail').value.trim();
+  const pass  = document.getElementById('regPass').value;
+  const postback = document.getElementById('regPostback').value.trim();
+  const msg   = document.getElementById('regMsg');
+  msg.className='auth-msg'; msg.textContent='';
+  if(!name||!email||!pass){ msg.className='auth-msg error'; msg.textContent='Fill required fields'; return; }
+  if(pass.length<8){ msg.className='auth-msg error'; msg.textContent='Password min 8 chars'; return; }
+  try {
+    // Register user
+    const r1 = await fetch(`${API}/auth/register`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,email,password:pass})});
+    const d1 = await r1.json();
+    if(!r1.ok && r1.status!==201){ msg.className='auth-msg error'; msg.textContent=d1.error||'Registration failed'; return; }
+    // Login
+    const r2 = await fetch(`${API}/auth/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:pass})});
+    const d2 = await r2.json();
+    if(!r2.ok){ msg.className='auth-msg info'; msg.textContent='Account created! Please verify email then login.'; return; }
+    token = d2.token;
+    localStorage.setItem('aff_token', token);
+    // Apply as affiliate
+    await fetch(`${API}/affiliate/apply`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({postback_url:postback||undefined})});
+    await initApp();
+  } catch(e){ msg.className='auth-msg error'; msg.textContent='Network error'; }
+}
+
+function doLogout(){
+  localStorage.removeItem('aff_token');
+  token=null; meData=null;
+  document.getElementById('appPage').style.display='none';
+  document.getElementById('authPage').style.display='flex';
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+async function initApp(){
+  if(!token) return;
+  try {
+    const r = await fetch(`${API}/affiliate/me`,{headers:{'Authorization':'Bearer '+token}});
+    if(!r.ok){ doLogout(); return; }
+    meData = await r.json();
+    refCode = meData.ref_code || '';
+    document.getElementById('hUsername').textContent = meData.email || meData.ref_code;
+    document.getElementById('authPage').style.display='none';
+    document.getElementById('appPage').style.display='block';
+    document.getElementById('refUrl').textContent = meData.ref_link || '';
+    // Init period
+    const now = new Date(), p = n=>String(n).padStart(2,'0');
+    document.getElementById('ovFrom').value = now.getFullYear()+'-'+p(now.getMonth()+1)+'-01';
+    document.getElementById('ovTo').value   = now.getFullYear()+'-'+p(now.getMonth()+1)+'-'+p(now.getDate());
+    document.getElementById('clFrom').value = now.getFullYear()+'-'+p(now.getMonth()+1)+'-01';
+    document.getElementById('clTo').value   = now.getFullYear()+'-'+p(now.getMonth()+1)+'-'+p(now.getDate());
+    loadOverview(); loadEarnings(); loadPlayers(); genSubLinks();
+  } catch(e){ doLogout(); }
+}
+
+// ── Tab nav ───────────────────────────────────────────────────────────────────
+function showTab(name){
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.ntab').forEach(b=>b.classList.remove('active'));
+  document.getElementById('sec-'+name).classList.add('active');
+  event.currentTarget.classList.add('active');
+  if(name==='clicks') loadClicks();
+}
+
+// ── Period helpers ────────────────────────────────────────────────────────────
+function setPeriod(p, btn){
+  document.querySelectorAll('#sec-overview .btn-period').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  const now=new Date(), pad=n=>String(n).padStart(2,'0');
+  const y=now.getFullYear(), m=pad(now.getMonth()+1), d=pad(now.getDate());
+  if(p==='today'){ document.getElementById('ovFrom').value=`${y}-${m}-${d}`; document.getElementById('ovTo').value=`${y}-${m}-${d}`; }
+  else if(p==='week'){
+    const w=new Date(now); w.setDate(now.getDate()-6);
+    document.getElementById('ovFrom').value=`${w.getFullYear()}-${pad(w.getMonth()+1)}-${pad(w.getDate())}`;
+    document.getElementById('ovTo').value=`${y}-${m}-${d}`;
+  } else if(p==='month'){ document.getElementById('ovFrom').value=`${y}-${m}-01`; document.getElementById('ovTo').value=`${y}-${m}-${d}`; }
+  else { document.getElementById('ovFrom').value='2020-01-01'; document.getElementById('ovTo').value=`${y}-${m}-${d}`; }
+  loadOverview();
+}
+function setPeriodClicks(p, btn){
+  document.querySelectorAll('#sec-clicks .btn-period').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  const now=new Date(), pad=n=>String(n).padStart(2,'0');
+  const y=now.getFullYear(), m=pad(now.getMonth()+1), d=pad(now.getDate());
+  if(p==='month'){ document.getElementById('clFrom').value=`${y}-${m}-01`; document.getElementById('clTo').value=`${y}-${m}-${d}`; }
+  else { document.getElementById('clFrom').value='2020-01-01'; document.getElementById('clTo').value=`${y}-${m}-${d}`; }
+  loadClicks();
+}
+
+// ── Load sections ─────────────────────────────────────────────────────────────
+function fmt(v){ return '$'+parseFloat(v||0).toFixed(2); }
+
+async function loadOverview(){
+  const from=document.getElementById('ovFrom').value, to=document.getElementById('ovTo').value;
+  const headers={'Authorization':'Bearer '+token};
+  try {
+    const [statsR, clicksR] = await Promise.all([
+      fetch(`${API}/affiliate/stats?from=${from}&to=${to}`,{headers}),
+      fetch(`${API}/affiliate/clicks?from=${from}&to=${to}`,{headers}),
+    ]);
+    const stats = await statsR.json();
+    const clicks = await clicksR.json();
+
+    document.getElementById('ov-clicks').textContent = clicks.total_clicks ?? '—';
+    document.getElementById('ov-regs').textContent   = stats.players ?? '—';
+    document.getElementById('ov-deps').textContent   = stats.depositors ?? '—';
+    document.getElementById('ov-ggr').textContent    = fmt(stats.ggr);
+    document.getElementById('ov-comm').textContent   = fmt(stats.commission);
+    document.getElementById('ov-bal').textContent    = fmt(stats.balance);
+
+    // Daily breakdown from clicks
+    const tbody = document.getElementById('ov-daily');
+    const byDate = {};
+    (clicks.rows||[]).forEach(r=>{
+      if(!byDate[r.date]) byDate[r.date]={clicks:0,conversions:0};
+      byDate[r.date].clicks += r.clicks;
+      byDate[r.date].conversions += r.conversions;
+    });
+    const days = Object.keys(byDate).sort().reverse();
+    tbody.innerHTML = days.length ? days.map(d=>`
+      <tr><td>${d}</td><td>${byDate[d].clicks}</td><td>${byDate[d].conversions}</td><td>—</td><td>—</td></tr>
+    `).join('') : '<tr><td colspan="5" class="empty">No data</td></tr>';
+  } catch(e){ console.error(e); }
+}
+
+async function loadClicks(){
+  const from=document.getElementById('clFrom').value, to=document.getElementById('clTo').value;
+  try {
+    const r = await fetch(`${API}/affiliate/clicks?from=${from}&to=${to}`,{headers:{'Authorization':'Bearer '+token}});
+    const d = await r.json();
+    document.getElementById('cl-total').textContent = d.total_clicks??'—';
+    document.getElementById('cl-conv').textContent  = d.total_conversions??'—';
+    const rate = d.total_clicks>0 ? ((d.total_conversions/d.total_clicks)*100).toFixed(1)+'%' : '0%';
+    document.getElementById('cl-rate').textContent  = rate;
+    const tbody = document.getElementById('cl-rows');
+    tbody.innerHTML = (d.rows||[]).length ? (d.rows||[]).map(r=>`
+      <tr><td>${r.date}</td><td>${r.sub1||'—'}</td><td>${r.clicks}</td><td>${r.conversions}</td>
+      <td>${r.clicks>0?((r.conversions/r.clicks)*100).toFixed(1)+'%':'0%'}</td></tr>
+    `).join('') : '<tr><td colspan="5" class="empty">No clicks yet</td></tr>';
+  } catch(e){}
+}
+
+async function loadPlayers(){
+  try {
+    const r = await fetch(`${API}/affiliate/referrals`,{headers:{'Authorization':'Bearer '+token}});
+    const d = await r.json();
+    const tbody = document.getElementById('pl-rows');
+    const rows = d.referrals||[];
+    tbody.innerHTML = rows.length ? rows.map(p=>`
+      <tr>
+        <td>${p.referred_user_email||'#'+p.referred_user_id.slice(0,8)}</td>
+        <td><span class="badge ${p.status==='deposited'?'green':'blue'}">${p.status}</span></td>
+        <td>${p.registered_at?new Date(p.registered_at).toLocaleDateString():'—'}</td>
+        <td>${fmt(p.total_wagered)}</td>
+        <td>${fmt(p.total_ggr)}</td>
+        <td>${p.first_deposit_amount>0?fmt(p.first_deposit_amount):'—'}</td>
+      </tr>
+    `).join('') : '<tr><td colspan="6" class="empty">No referred players yet. Share your link!</td></tr>';
+  } catch(e){}
+}
+
+async function loadEarnings(){
+  if(!meData) return;
+  document.getElementById('ea-total').textContent = fmt(meData.stats.total_earned);
+  document.getElementById('ea-paid').textContent  = fmt(meData.stats.total_paid);
+  document.getElementById('ea-bal').textContent   = fmt(meData.stats.balance);
+  document.getElementById('ea-pct').textContent   = (meData.revshare_percent||25)+'%';
+  try {
+    const r = await fetch(`${API}/affiliate/earnings`,{headers:{'Authorization':'Bearer '+token}});
+    const d = await r.json();
+    const tbody = document.getElementById('ea-rows');
+    const rows  = d.earnings||[];
+    tbody.innerHTML = rows.length ? rows.map(e=>`
+      <tr>
+        <td>${new Date(e.created_date).toLocaleDateString()}</td>
+        <td><span class="badge ${e.type==='payout'?'red':e.type==='revshare'?'green':'yellow'}">${e.type}</span></td>
+        <td style="color:${parseFloat(e.amount)<0?'#f87171':'#4ade80'}">${parseFloat(e.amount)<0?'-':'+'}${fmt(Math.abs(e.amount))}</td>
+        <td>${e.description||'—'}</td>
+      </tr>
+    `).join('') : '<tr><td colspan="4" class="empty">No earnings yet</td></tr>';
+  } catch(e){}
+}
+
+// ── Links ─────────────────────────────────────────────────────────────────────
+function genSubLinks(){
+  const sources = ['google','facebook','telegram','twitter','instagram'];
+  const tbody = document.getElementById('sub-rows');
+  tbody.innerHTML = sources.map(s=>{
+    const url = `https://cryptora.live/?ref=${refCode}&sub1=${s}`;
+    return `<tr><td>${s}</td><td style="font-family:monospace;font-size:12px;color:#93c5fd">${url}</td>
+      <td><button class="btn-sm" onclick="navigator.clipboard.writeText('${url}');showToast('Copied!')">Copy</button></td></tr>`;
+  }).join('');
+}
+function genSub1(){
+  const sub1 = document.getElementById('sub1Input').value.trim();
+  if(!sub1) return;
+  const url = `https://cryptora.live/?ref=${refCode}&sub1=${encodeURIComponent(sub1)}`;
+  document.getElementById('sub1Url').textContent = url;
+  document.getElementById('sub1Result').style.display='block';
+}
+function copyRef(){ navigator.clipboard.writeText(document.getElementById('refUrl').textContent); showToast('Link copied!'); }
+function copySub1(){ navigator.clipboard.writeText(document.getElementById('sub1Url').textContent); showToast('Copied!'); }
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+function showToast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2500); }
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  if(token) initApp();
+  document.getElementById('loginPass').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
+  document.getElementById('regPass').addEventListener('keydown', e=>{ if(e.key==='Enter') doRegister(); });
+});
+</script>
+</body>
+</html>
