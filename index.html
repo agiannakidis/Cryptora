@@ -1,0 +1,1532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cryptora — Operator Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #070b14;
+  --surface: #0e1422;
+  --surface2: #131926;
+  --border: #1c2436;
+  --border2: #253044;
+  --text: #e8edf5;
+  --muted: #5a6a85;
+  --muted2: #3d4f6b;
+  --gold: #f59e0b;
+  --gold2: #d97706;
+  --green: #22c55e;
+  --red: #ef4444;
+  --blue: #3b82f6;
+  --sidebar-w: 220px;
+}
+html, body { height: 100%; font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; overflow: hidden; }
+
+/* ── AUTH GATE ────────────────────────────────────────────────── */
+#gate {
+  position: fixed; inset: 0; z-index: 999;
+  background: var(--bg);
+  display: flex; align-items: center; justify-content: center;
+}
+.login-box {
+  width: 360px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 36px;
+}
+.login-logo {
+  text-align: center; margin-bottom: 28px;
+}
+.login-logo span {
+  font-size: 22px; font-weight: 700; letter-spacing: .08em;
+  background: linear-gradient(135deg, #fff0a0, #f59e0b, #d97706);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.login-logo p { color: var(--muted); font-size: 12px; margin-top: 4px; }
+.field-label { font-size: 12px; font-weight: 500; color: var(--muted); margin-bottom: 6px; }
+.field-input {
+  width: 100%; padding: 10px 14px;
+  background: var(--bg); border: 1px solid var(--border2);
+  border-radius: 8px; color: var(--text); font-size: 14px; outline: none;
+  transition: border-color .15s;
+}
+.field-input:focus { border-color: var(--gold); }
+.field-group { margin-bottom: 16px; }
+.btn-login {
+  width: 100%; padding: 11px;
+  background: var(--gold); color: #0a0a0a;
+  font-weight: 700; font-size: 14px;
+  border: none; border-radius: 8px; cursor: pointer;
+  transition: background .15s;
+}
+.btn-login:hover { background: var(--gold2); }
+#gate-err { color: var(--red); font-size: 12px; text-align: center; margin-top: 12px; min-height: 18px; }
+
+/* ── LAYOUT ───────────────────────────────────────────────────── */
+#app { display: none; height: 100vh; }
+#app.ready { display: flex; }
+
+/* ── SIDEBAR ──────────────────────────────────────────────────── */
+.sidebar {
+  width: var(--sidebar-w);
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  flex-shrink: 0; overflow-y: auto;
+}
+.sidebar-logo {
+  padding: 20px 18px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.sidebar-logo span {
+  font-size: 16px; font-weight: 700; letter-spacing: .08em;
+  background: linear-gradient(135deg, #fff0a0, #f59e0b);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.sidebar-logo p { color: var(--muted); font-size: 11px; margin-top: 2px; }
+.nav-section { padding: 12px 10px 6px; }
+.nav-label { font-size: 10px; font-weight: 600; color: var(--muted2); letter-spacing: .08em; text-transform: uppercase; padding: 0 8px; margin-bottom: 4px; }
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: 8px;
+  cursor: pointer; color: var(--muted); font-size: 13px; font-weight: 500;
+  transition: all .15s; position: relative;
+}
+.nav-item:hover { background: rgba(255,255,255,.04); color: var(--text); }
+.nav-item.active { background: rgba(245,158,11,.1); color: var(--gold); }
+.nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+.nav-badge {
+  margin-left: auto; background: var(--red); color: #fff;
+  font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 20px;
+}
+.sidebar-footer {
+  margin-top: auto; padding: 14px 10px;
+  border-top: 1px solid var(--border);
+}
+.user-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: 8px;
+  cursor: pointer; transition: background .15s;
+}
+.user-row:hover { background: rgba(255,255,255,.04); }
+.user-avatar {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; color: #0a0a0a; flex-shrink: 0;
+}
+.user-name { font-size: 13px; font-weight: 600; color: var(--text); }
+.user-role { font-size: 11px; color: var(--muted); }
+.btn-logout {
+  width: 100%; margin-top: 6px; padding: 8px;
+  background: none; border: 1px solid var(--border2); border-radius: 8px;
+  color: var(--muted); font-size: 12px; cursor: pointer; transition: all .15s;
+}
+.btn-logout:hover { border-color: var(--red); color: var(--red); }
+
+/* ── MAIN ─────────────────────────────────────────────────────── */
+.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.topbar {
+  padding: 14px 24px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--surface); flex-shrink: 0;
+}
+.topbar-title { font-size: 16px; font-weight: 600; }
+.topbar-actions { display: flex; align-items: center; gap: 10px; }
+.page { flex: 1; overflow-y: auto; padding: 24px; }
+
+/* ── STAT CARDS ───────────────────────────────────────────────── */
+.stats-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;
+  margin-bottom: 24px;
+}
+.stat-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 18px 20px;
+}
+.stat-label { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+.stat-value { font-size: 24px; font-weight: 700; color: var(--text); }
+.stat-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.stat-icon {
+  width: 36px; height: 36px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 12px;
+}
+
+/* ── TABLE ────────────────────────────────────────────────────── */
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; overflow: hidden;
+}
+.card-header {
+  padding: 16px 20px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.card-title { font-size: 14px; font-weight: 600; }
+.card-body { padding: 0; }
+table { width: 100%; border-collapse: collapse; }
+th {
+  text-align: left; padding: 10px 16px;
+  font-size: 11px; font-weight: 600; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .06em;
+  border-bottom: 1px solid var(--border);
+  background: rgba(255,255,255,.015);
+}
+td { padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,.04); vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(255,255,255,.02); }
+
+/* ── OPERATOR DETAIL (right panel) ───────────────────────────── */
+.op-detail {
+  position: fixed; top: 0; right: 0; bottom: 0;
+  width: 480px; z-index: 200;
+  background: var(--surface2);
+  border-left: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  transform: translateX(100%);
+  transition: transform .25s cubic-bezier(.4,0,.2,1);
+}
+.op-detail.open { transform: translateX(0); }
+.op-detail-overlay {
+  position: fixed; inset: 0; z-index: 199;
+  background: rgba(0,0,0,.5);
+  display: none;
+}
+.op-detail-overlay.open { display: block; }
+.detail-header {
+  padding: 18px 20px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 14px; flex-shrink: 0;
+}
+.detail-avatar {
+  width: 44px; height: 44px; border-radius: 12px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; font-weight: 700; color: #fff; flex-shrink: 0;
+}
+.detail-name { font-size: 16px; font-weight: 700; }
+.detail-email { font-size: 12px; color: var(--muted); }
+.detail-close {
+  margin-left: auto; width: 32px; height: 32px;
+  background: rgba(255,255,255,.06); border: none; border-radius: 8px;
+  color: var(--muted); cursor: pointer; font-size: 18px; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+}
+.detail-close:hover { color: var(--text); background: rgba(255,255,255,.1); }
+.detail-tabs {
+  display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.detail-tab {
+  flex: 1; padding: 10px; text-align: center;
+  font-size: 12px; font-weight: 600; color: var(--muted);
+  cursor: pointer; border-bottom: 2px solid transparent;
+  transition: all .15s;
+}
+.detail-tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+.detail-content { flex: 1; overflow-y: auto; padding: 20px; }
+
+/* ── DETAIL INFO ──────────────────────────────────────────────── */
+.info-row {
+  display: flex; justify-content: space-between;
+  padding: 10px 0; border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.info-row:last-child { border-bottom: none; }
+.info-key { color: var(--muted); }
+.info-val { font-weight: 500; }
+
+/* ── BALANCE FORM ─────────────────────────────────────────────── */
+.balance-section { margin-top: 16px; }
+.balance-display {
+  text-align: center; padding: 20px;
+  background: rgba(245,158,11,.06);
+  border: 1px solid rgba(245,158,11,.15);
+  border-radius: 12px; margin-bottom: 16px;
+}
+.balance-amount { font-size: 32px; font-weight: 700; color: var(--gold); }
+.balance-label { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.btn-row { display: flex; gap: 8px; }
+.btn { padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; transition: all .15s; font-family: inherit; }
+.btn-sm { padding: 5px 10px; font-size: 12px; border-radius: 6px; }
+.btn-primary { background: var(--gold); color: #0a0a0a; }
+.btn-primary:hover { background: var(--gold2); }
+.btn-danger { background: rgba(239,68,68,.15); color: var(--red); border: 1px solid rgba(239,68,68,.25); }
+.btn-danger:hover { background: rgba(239,68,68,.25); }
+.btn-ghost { background: rgba(255,255,255,.06); color: var(--text); border: 1px solid var(--border2); }
+.btn-ghost:hover { background: rgba(255,255,255,.1); }
+.btn-green { background: rgba(34,197,94,.15); color: var(--green); border: 1px solid rgba(34,197,94,.25); }
+.btn-green:hover { background: rgba(34,197,94,.25); }
+.form-input {
+  width: 100%; padding: 9px 12px;
+  background: var(--bg); border: 1px solid var(--border2);
+  border-radius: 8px; color: var(--text); font-size: 13px; outline: none;
+  transition: border-color .15s; font-family: inherit;
+}
+.form-input:focus { border-color: var(--gold); }
+.form-row { display: flex; gap: 8px; margin-bottom: 10px; }
+.form-group { margin-bottom: 12px; }
+.form-label { font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 5px; text-transform: uppercase; letter-spacing: .05em; }
+
+/* ── PLAYERS LIST ─────────────────────────────────────────────── */
+.player-row {
+  padding: 10px 0; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+}
+.player-row:last-child { border-bottom: none; }
+.player-avatar {
+  width: 32px; height: 32px; border-radius: 8px;
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; color: #fff; flex-shrink: 0;
+}
+.player-name { font-size: 13px; font-weight: 600; }
+.player-bal { font-size: 12px; color: var(--green); font-weight: 600; }
+.player-status { font-size: 11px; color: var(--muted); }
+.player-actions { margin-left: auto; display: flex; gap: 5px; }
+
+/* ── CHAT ─────────────────────────────────────────────────────── */
+.chat-messages { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.chat-msg { padding: 8px 12px; border-radius: 10px; max-width: 85%; font-size: 13px; }
+.chat-msg.admin { background: rgba(245,158,11,.12); border: 1px solid rgba(245,158,11,.2); align-self: flex-end; }
+.chat-msg.operator { background: var(--surface); border: 1px solid var(--border); align-self: flex-start; }
+.chat-meta { font-size: 10px; color: var(--muted); margin-top: 3px; text-align: right; }
+.chat-input-row { display: flex; gap: 8px; }
+
+/* ── PROVIDERS ────────────────────────────────────────────────── */
+.prov-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 0; border-bottom: 1px solid var(--border);
+}
+.prov-item:last-child { border-bottom: none; }
+.prov-name { font-size: 13px; font-weight: 500; }
+.prov-games { font-size: 11px; color: var(--muted); }
+.toggle {
+  position: relative; width: 40px; height: 22px; cursor: pointer;
+}
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle-track {
+  position: absolute; inset: 0;
+  background: var(--border2); border-radius: 22px;
+  transition: background .2s;
+}
+.toggle input:checked + .toggle-track { background: var(--green); }
+.toggle-knob {
+  position: absolute; top: 3px; left: 3px;
+  width: 16px; height: 16px;
+  background: #fff; border-radius: 50%;
+  transition: left .2s; pointer-events: none;
+}
+.toggle input:checked ~ .toggle-knob { left: 21px; }
+
+/* ── BADGES ───────────────────────────────────────────────────── */
+.badge {
+  display: inline-flex; align-items: center;
+  padding: 3px 8px; border-radius: 20px;
+  font-size: 11px; font-weight: 600;
+}
+.badge-approved { background: rgba(34,197,94,.12); color: var(--green); }
+.badge-pending_approval { background: rgba(245,158,11,.12); color: var(--gold); }
+.badge-pending_email { background: rgba(59,130,246,.12); color: var(--blue); }
+.badge-rejected { background: rgba(239,68,68,.12); color: var(--red); }
+
+/* ── STATUS MSG ───────────────────────────────────────────────── */
+.status-msg {
+  padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: 500;
+  margin-top: 10px; display: none;
+}
+.status-msg.ok { background: rgba(34,197,94,.1); border: 1px solid rgba(34,197,94,.2); color: var(--green); display: block; }
+.status-msg.err { background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.2); color: var(--red); display: block; }
+
+/* ── MODAL ────────────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 300;
+  background: rgba(0,0,0,.6);
+  display: none; align-items: center; justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 16px; padding: 28px; width: 400px;
+}
+.modal-title { font-size: 16px; font-weight: 700; margin-bottom: 20px; }
+
+/* ── TOAST ────────────────────────────────────────────────────── */
+#toast {
+  position: fixed; bottom: 24px; right: 24px; z-index: 999;
+  padding: 10px 16px; border-radius: 10px; font-size: 13px; font-weight: 500;
+  background: var(--surface); border: 1px solid var(--border2);
+  box-shadow: 0 8px 32px rgba(0,0,0,.4);
+  transform: translateY(80px); opacity: 0;
+  transition: all .25s cubic-bezier(.4,0,.2,1);
+  pointer-events: none;
+}
+#toast.show { transform: translateY(0); opacity: 1; }
+#toast.ok { border-color: rgba(34,197,94,.3); color: var(--green); }
+#toast.err { border-color: rgba(239,68,68,.3); color: var(--red); }
+
+/* ── PAGE SECTIONS ────────────────────────────────────────────── */
+.page-section { display: none; }
+.page-section.active { display: block; }
+
+/* ── SCROLLBAR ────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- AUTH GATE -->
+<div id="gate">
+  <div class="login-box">
+    <div class="login-logo">
+      <span>CRYPTORA</span>
+      <p>Operator Management Hub</p>
+    </div>
+    <div class="field-group">
+      <div class="field-label">Email</div>
+      <input class="field-input" id="loginEmail" type="email" value="gaminator2013@gmail.com" placeholder="admin@cryptora.live">
+    </div>
+    <div class="field-group">
+      <div class="field-label">Password</div>
+      <input class="field-input" id="loginPass" type="password" placeholder="••••••••" onkeydown="if(e.key==='Enter')doLogin(event)">
+    </div>
+    <button class="btn-login" onclick="doLogin()">Sign In</button>
+    <div id="gate-err"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <span>CRYPTORA</span>
+      <p>Admin Hub</p>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-label">Overview</div>
+      <div class="nav-item active" onclick="navTo('dashboard',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Dashboard
+      </div>
+      <div class="nav-item" onclick="navTo('operators',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Operators
+        <span class="nav-badge" id="pendingBadge" style="display:none">0</span>
+      </div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-label">Manage</div>
+      <div class="nav-item" onclick="navTo('transactions',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        Transactions
+      </div>
+      <div class="nav-item" onclick="navTo('accounting',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        Accounting
+      </div>
+      <div class="nav-item" onclick="navTo('logs',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        API Logs
+      </div>
+      <div class="nav-item" onclick="navTo('create',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+        Add Operator
+      </div>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="user-row">
+        <div class="user-avatar" id="adminAvatar">A</div>
+        <div>
+          <div class="user-name" id="adminName">Admin</div>
+          <div class="user-role">Super Admin</div>
+        </div>
+      </div>
+      <button class="btn-logout" onclick="doLogout()">Sign out</button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="topbar">
+      <div class="topbar-title" id="pageTitle">Dashboard</div>
+      <div class="topbar-actions">
+        <div id="refreshIndicator" style="font-size:11px;color:var(--muted)">Auto-refresh: 15s</div>
+      </div>
+    </div>
+
+    <div class="page">
+
+      <!-- DASHBOARD -->
+      <div class="page-section active" id="sec-dashboard">
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon" style="background:rgba(245,158,11,.1)">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <div class="stat-label">Total Operators</div>
+            <div class="stat-value" id="st-ops">—</div>
+            <div class="stat-sub" id="st-pending">— pending</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon" style="background:rgba(59,130,246,.1)">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </div>
+            <div class="stat-label">Total Players</div>
+            <div class="stat-value" id="st-players">—</div>
+            <div class="stat-sub">across all operators</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon" style="background:rgba(34,197,94,.1)">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            </div>
+            <div class="stat-label">Total Operator Funds</div>
+            <div class="stat-value" id="st-funds">—</div>
+            <div class="stat-sub">combined balances</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon" style="background:rgba(168,85,247,.1)">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+            </div>
+            <div class="stat-label">Active Providers</div>
+            <div class="stat-value" id="st-provs">4</div>
+            <div class="stat-sub">NetGame, Novomatic, Yggdrasil...</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Recent Operators</span>
+            <button class="btn btn-ghost btn-sm" onclick="navTo('operators',document.querySelector('[onclick*=operators]'))">View All →</button>
+          </div>
+          <div class="card-body">
+            <table>
+              <thead><tr><th>Operator</th><th>Balance</th><th>Players</th><th>Status</th><th>Created</th><th></th></tr></thead>
+              <tbody id="dashOpTable"><tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px">Loading…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- OPERATORS -->
+      <div class="page-section" id="sec-operators">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">All Operators</span>
+            <button class="btn btn-primary btn-sm" onclick="navTo('create',document.querySelector('[onclick*=create]'))">+ Add Operator</button>
+          </div>
+          <div class="card-body">
+            <table>
+              <thead><tr><th>Operator</th><th>Balance</th><th>Players</th><th>Status</th><th>Joined</th><th>Actions</th></tr></thead>
+              <tbody id="opsTable"><tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px">Loading…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TRANSACTIONS -->
+      <div class="page-section" id="sec-transactions">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Operator Transactions</span>
+          </div>
+          <div class="card-body">
+            <table>
+              <thead><tr><th>Date</th><th>Operator</th><th>Type</th><th>Amount</th><th>Note</th></tr></thead>
+              <tbody id="txTable"><tr><td colspan="5" style="text-align:center;color:var(--muted);padding:32px">Loading…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- CREATE OPERATOR -->
+      <div class="page-section" id="sec-create">
+        <div class="card" style="max-width:520px">
+          <div class="card-header"><span class="card-title">Create Operator Account</span></div>
+          <div class="card-body" style="padding:24px">
+            <div class="form-group">
+              <div class="form-label">Username</div>
+              <input class="form-input" id="c-username" placeholder="john_casino">
+            </div>
+            <div class="form-group">
+              <div class="form-label">Email</div>
+              <input class="form-input" id="c-email" type="email" placeholder="operator@example.com">
+            </div>
+            <div class="form-group">
+              <div class="form-label">Password</div>
+              <input class="form-input" id="c-password" type="password" placeholder="Min 8 characters">
+            </div>
+            <div class="form-row">
+              <div class="form-group" style="flex:1">
+                <div class="form-label">Currency</div>
+                <select class="form-input" id="c-currency">
+                  <option>USD</option><option>EUR</option><option>TRY</option><option>HRK</option>
+                </select>
+              </div>
+              <div class="form-group" style="flex:1">
+                <div class="form-label">Initial Balance ($)</div>
+                <input class="form-input" id="c-balance" type="number" placeholder="0" min="0">
+              </div>
+            </div>
+            <div class="form-group">
+              <div class="form-label">Notes</div>
+              <input class="form-input" id="c-notes" placeholder="Optional internal notes">
+            </div>
+            <button class="btn btn-primary" id="createBtn" onclick="createOperator()" style="width:100%;padding:11px">Create Operator</button>
+            <div class="status-msg" id="createStatus"></div>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- ACCOUNTING -->
+      <div class="page-section" id="sec-accounting">
+        <!-- Period selector -->
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:8px">
+            <label style="font-size:12px;color:var(--muted);font-weight:600">FROM</label>
+            <input class="form-input" id="acct-from" type="date" style="width:150px" onchange="loadAccounting()">
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <label style="font-size:12px;color:var(--muted);font-weight:600">TO</label>
+            <input class="form-input" id="acct-to" type="date" style="width:150px" onchange="loadAccounting()">
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button class="btn btn-ghost btn-sm" onclick="setAcctPeriod('today')">Today</button>
+            <button class="btn btn-ghost btn-sm" onclick="setAcctPeriod('week')">Week</button>
+            <button class="btn btn-ghost btn-sm" onclick="setAcctPeriod('month')">Month</button>
+            <button class="btn btn-ghost btn-sm" onclick="setAcctPeriod('all')">All Time</button>
+          </div>
+        </div>
+
+        <!-- Summary cards -->
+        <div class="stats-grid" id="acctSummary" style="margin-bottom:20px"></div>
+
+        <!-- Per-operator table -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Per-Operator Breakdown</span>
+            <button class="btn btn-ghost btn-sm" onclick="exportAcctCSV()">⬇ CSV</button>
+          </div>
+          <div class="card-body">
+            <table>
+              <thead>
+                <tr>
+                  <th>Operator</th>
+                  <th>Currency</th>
+                  <th style="color:#4ade80">Cashin</th>
+                  <th style="color:#f87171">Cashout</th>
+                  <th style="color:#f59e0b">Profit</th>
+                  <th>Txns</th>
+                  <th>Admin In/Out</th>
+                  <th>Current Balance</th>
+                </tr>
+              </thead>
+              <tbody id="acctTable">
+                <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:32px">Select a period above</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- API LOGS -->
+      <div class="page-section" id="sec-logs">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:8px">
+            <label style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase">From</label>
+            <input class="form-input" id="log-from" type="date" style="width:145px">
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <label style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase">To</label>
+            <input class="form-input" id="log-to" type="date" style="width:145px">
+          </div>
+          <select class="form-input" id="log-player" style="width:180px">
+            <option value="">All Players</option>
+          </select>
+          <select class="form-input" id="log-action" style="width:140px">
+            <option value="all">All Actions</option>
+            <option value="getaccount">getaccount</option>
+            <option value="getbalance">getbalance</option>
+            <option value="wager">wager</option>
+            <option value="result">result</option>
+          </select>
+          <button class="btn btn-primary btn-sm" onclick="loadLogs()">Load</button>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-ghost btn-sm" onclick="setLogPeriod('today')">Today</button>
+            <button class="btn btn-ghost btn-sm" onclick="setLogPeriod('week')">Week</button>
+            <button class="btn btn-ghost btn-sm" onclick="setLogPeriod('month')">Month</button>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="exportLogsCSV()">⬇ CSV</button>
+        </div>
+
+        <!-- Summary -->
+        <div id="logStats" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px"></div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title" id="logTitle">API Logs</span>
+            <span id="logCount" style="font-size:12px;color:var(--muted)"></span>
+          </div>
+          <div class="card-body" style="overflow-x:auto">
+            <table style="min-width:900px">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Action</th>
+                  <th>Player</th>
+                  <th>Session</th>
+                  <th>Round</th>
+                  <th style="color:#f87171">Amount</th>
+                  <th style="color:#94a3b8">Bal Before</th>
+                  <th style="color:#4ade80">Bal After</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="logsTable">
+                <tr><td colspan="9" style="text-align:center;color:var(--muted);padding:32px">Set period and click Load</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /page -->
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<!-- OPERATOR DETAIL PANEL -->
+<div class="op-detail-overlay" id="detailOverlay" onclick="closeDetail()"></div>
+<div class="op-detail" id="opDetail">
+  <div class="detail-header">
+    <div class="detail-avatar" id="d-avatar">J</div>
+    <div>
+      <div class="detail-name" id="d-name">—</div>
+      <div class="detail-email" id="d-email">—</div>
+    </div>
+    <button class="detail-close" onclick="closeDetail()">×</button>
+  </div>
+  <div class="detail-tabs">
+    <div class="detail-tab active" onclick="detailTab('info',this)">Info</div>
+    <div class="detail-tab" onclick="detailTab('balance',this)">Balance</div>
+    <div class="detail-tab" onclick="detailTab('players',this)">Players</div>
+    <div class="detail-tab" onclick="detailTab('chat',this)">Chat</div>
+    <div class="detail-tab" onclick="detailTab('providers',this)">Providers</div>
+  </div>
+  <div class="detail-content" id="detailContent">
+    <div style="color:var(--muted);text-align:center;padding:40px">Select an operator</div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+let token = localStorage.getItem('admin_token') || '';
+let operators = [];
+let currentOp = null;
+let refreshTimer = null;
+
+
+// ── ACCOUNTING ────────────────────────────────────────────────────────────────
+let acctData = [];
+
+function setAcctPeriod(p) {
+  const now = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  const fmt = d => d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  let from, to = fmt(now);
+  if (p === 'today') { from = fmt(now); }
+  else if (p === 'week') {
+    const d = new Date(now); d.setDate(d.getDate()-6); from = fmt(d);
+  } else if (p === 'month') {
+    from = now.getFullYear()+'-'+pad(now.getMonth()+1)+'-01';
+  } else {
+    from = '2020-01-01';
+    to   = fmt(new Date(now.getFullYear()+1, 0, 1));
+  }
+  document.getElementById('acct-from').value = from;
+  document.getElementById('acct-to').value   = to;
+  loadAccounting();
+}
+
+async function loadAccounting() {
+  const from = document.getElementById('acct-from').value;
+  const to   = document.getElementById('acct-to').value;
+  if (!from || !to) return;
+  document.getElementById('acctTable').innerHTML =
+    '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:32px">Loading…</td></tr>';
+  document.getElementById('acctSummary').innerHTML = '';
+  try {
+    const r = await fetch(`/api/operator/admin/accounting?from=${from}&to=${to}`, {
+      headers: { Authorization: 'Bearer ' + token }
+    });
+    acctData = await r.json();
+    renderAccounting(acctData);
+  } catch(e) {
+    document.getElementById('acctTable').innerHTML =
+      '<tr><td colspan="8" style="text-align:center;color:var(--red);padding:32px">Error loading</td></tr>';
+  }
+}
+
+function renderAccounting(data) {
+  // Summary
+  const totCashin  = data.reduce((s,r) => s+r.cashin, 0);
+  const totCashout = data.reduce((s,r) => s+r.cashout, 0);
+  const totProfit  = totCashin - totCashout;
+  const totBal     = data.reduce((s,r) => s+r.balance, 0);
+  const summaryEl  = document.getElementById('acctSummary');
+  summaryEl.innerHTML = `
+    <div class="stat-card">
+      <div class="stat-icon" style="background:rgba(34,197,94,.1)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      </div>
+      <div class="stat-label">Total Cashin</div>
+      <div class="stat-value" style="color:#22c55e">$${totCashin.toFixed(2)}</div>
+      <div class="stat-sub">Player deposits to operators</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:rgba(239,68,68,.1)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      </div>
+      <div class="stat-label">Total Cashout</div>
+      <div class="stat-value" style="color:#ef4444">$${totCashout.toFixed(2)}</div>
+      <div class="stat-sub">Player withdrawals from operators</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:rgba(245,158,11,.1)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+      </div>
+      <div class="stat-label">Net Profit</div>
+      <div class="stat-value" style="color:${totProfit>=0?'#f59e0b':'#ef4444'}">${totProfit>=0?'+':''}$${totProfit.toFixed(2)}</div>
+      <div class="stat-sub">Cashin minus Cashout</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:rgba(168,85,247,.1)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 3H8l-2 4h12z"/></svg>
+      </div>
+      <div class="stat-label">Operator Balances</div>
+      <div class="stat-value" style="color:#a855f7">$${totBal.toFixed(2)}</div>
+      <div class="stat-sub">Current combined</div>
+    </div>
+  `;
+
+  // Table
+  const tbody = document.getElementById('acctTable');
+  if (!data.length) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:32px">No data</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.map(r => {
+    const profit = r.cashin - r.cashout;
+    return `<tr>
+      <td>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,#667eea,#764ba2);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff">${(r.username||'?')[0].toUpperCase()}</div>
+          <span style="font-weight:600">${esc(r.username)}</span>
+        </div>
+      </td>
+      <td style="color:var(--muted);font-size:12px">${r.currency}</td>
+      <td style="color:#4ade80;font-weight:700">$${r.cashin.toFixed(2)}<div style="font-size:10px;color:var(--muted)">${r.cashin_count} txns</div></td>
+      <td style="color:#f87171;font-weight:700">$${r.cashout.toFixed(2)}<div style="font-size:10px;color:var(--muted)">${r.cashout_count} txns</div></td>
+      <td style="font-weight:700;color:${profit>=0?'#f59e0b':'#ef4444'}">${profit>=0?'+':''}$${profit.toFixed(2)}</td>
+      <td style="color:var(--muted);font-size:12px">${r.cashin_count+r.cashout_count}</td>
+      <td style="font-size:12px">
+        <span style="color:#4ade80">+$${r.admin_in.toFixed(2)}</span>
+        <span style="color:var(--muted)"> / </span>
+        <span style="color:#f87171">-$${r.admin_out.toFixed(2)}</span>
+      </td>
+      <td style="font-weight:700;color:#a855f7">$${r.balance.toFixed(2)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function exportAcctCSV() {
+  if (!acctData.length) return;
+  const header = 'Operator,Currency,Cashin,Cashout,Profit,Txns,Admin In,Admin Out,Balance';
+  const rows = acctData.map(r =>
+    [r.username, r.currency,
+     r.cashin.toFixed(2), r.cashout.toFixed(2),
+     (r.cashin-r.cashout).toFixed(2),
+     r.cashin_count+r.cashout_count,
+     r.admin_in.toFixed(2), r.admin_out.toFixed(2),
+     r.balance.toFixed(2)
+    ].join(',')
+  );
+  const from = document.getElementById('acct-from').value;
+  const to   = document.getElementById('acct-to').value;
+  const csv = [header, ...rows].join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = `accounting_${from}_${to}.csv`;
+  a.click();
+}
+
+
+// ── API LOGS ──────────────────────────────────────────────────────────────────
+let logsData = [];
+
+function setLogPeriod(p) {
+  const now = new Date(), pad = n => String(n).padStart(2,'0');
+  const fmt = d => d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  let from, to = fmt(now);
+  if (p === 'today') { from = fmt(now); }
+  else if (p === 'week') { const d=new Date(now); d.setDate(d.getDate()-6); from=fmt(d); }
+  else { from = now.getFullYear()+'-'+pad(now.getMonth()+1)+'-01'; }
+  document.getElementById('log-from').value = from;
+  document.getElementById('log-to').value   = to;
+}
+
+async function initLogPlayers() {
+  try {
+    const r = await fetch('/api/operator/admin/wallet-log-players', { headers: { Authorization: 'Bearer ' + token } });
+    const players = await r.json();
+    const sel = document.getElementById('log-player');
+    players.forEach(p => {
+      const o = document.createElement('option');
+      o.value = p.user_id;
+      o.textContent = p.username + (p.operator_id ? ' (op)' : '');
+      sel.appendChild(o);
+    });
+  } catch {}
+}
+
+async function loadLogs() {
+  const from     = document.getElementById('log-from').value;
+  const to       = document.getElementById('log-to').value;
+  const playerId = document.getElementById('log-player').value;
+  const action   = document.getElementById('log-action').value;
+  if (!from || !to) { toast('Set date range', false); return; }
+
+  document.getElementById('logsTable').innerHTML =
+    '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:32px">Loading\u2026</td></tr>';
+  document.getElementById('logStats').innerHTML = '';
+  document.getElementById('logCount').textContent = '';
+
+  let url = '/api/operator/admin/wallet-logs?from='+from+'&to='+to;
+  if (playerId) url += '&user_id=' + encodeURIComponent(playerId);
+  if (action && action !== 'all') url += '&action=' + encodeURIComponent(action);
+
+  try {
+    const r = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+    logsData = await r.json();
+    if (!Array.isArray(logsData)) { logsData = []; }
+    renderLogs();
+  } catch(e) {
+    document.getElementById('logsTable').innerHTML =
+      '<tr><td colspan="9" style="text-align:center;color:var(--red);padding:32px">Error: '+e.message+'</td></tr>';
+  }
+}
+
+function renderLogs() {
+  document.getElementById('logCount').textContent = logsData.length + ' records';
+
+  // Stats
+  const byAction = {};
+  let totalWager = 0, totalResult = 0;
+  for (const r of logsData) {
+    byAction[r.action] = (byAction[r.action] || 0) + 1;
+    if (r.action === 'wager')  totalWager  += parseFloat(r.amount) || 0;
+    if (r.action === 'result') totalResult += parseFloat(r.amount) || 0;
+  }
+  const actionColors = { getaccount:'#3b82f6', getbalance:'#a855f7', wager:'#f87171', result:'#4ade80' };
+  document.getElementById('logStats').innerHTML = Object.entries(byAction).map(([a,n]) =>
+    '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 18px;display:flex;flex-direction:column;gap:4px">'+
+      '<span style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:600">'+a+'</span>'+
+      '<span style="font-size:22px;font-weight:700;color:'+(actionColors[a]||'var(--text)')+'">'+n+'</span>'+
+    '</div>'
+  ).join('') +
+  (totalWager > 0 ? '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 18px">'+
+    '<div style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:600;margin-bottom:4px">Total Wagered</div>'+
+    '<div style="font-size:22px;font-weight:700;color:#f87171">$'+totalWager.toFixed(2)+'</div></div>' : '') +
+  (totalResult > 0 ? '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 18px">'+
+    '<div style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:600;margin-bottom:4px">Total Won</div>'+
+    '<div style="font-size:22px;font-weight:700;color:#4ade80">$'+totalResult.toFixed(2)+'</div></div>' : '');
+
+  if (!logsData.length) {
+    document.getElementById('logsTable').innerHTML =
+      '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:32px">No data for this period</td></tr>';
+    return;
+  }
+
+  const actionBadge = {
+    getaccount: 'background:rgba(59,130,246,.12);color:#60a5fa',
+    getbalance:  'background:rgba(168,85,247,.12);color:#c084fc',
+    wager:       'background:rgba(239,68,68,.12);color:#f87171',
+    result:      'background:rgba(34,197,94,.12);color:#4ade80',
+  };
+
+  document.getElementById('logsTable').innerHTML = logsData.map(function(row) {
+    const dt = new Date(row.ts||row.created_at);
+    const time = dt.toLocaleDateString('en-GB',{day:'2-digit',month:'short'}) + ' ' +
+                 dt.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    const badgeStyle = actionBadge[row.action] || 'background:rgba(255,255,255,.08);color:var(--text)';
+    const amt = parseFloat(row.amount) || 0;
+    const bb  = parseFloat(row.balance_before) || 0;
+    const ba  = parseFloat(row.balance_after) || 0;
+    const isErr = row.response_status && row.response_status !== 'ok';
+    return '<tr style="'+(isErr?'background:rgba(239,68,68,.04)':'')+'">'+
+      '<td style="font-size:11px;color:var(--muted);white-space:nowrap">'+time+'</td>'+
+      '<td><span class="badge" style="'+badgeStyle+'">'+row.action+'</span></td>'+
+      '<td style="font-weight:600;font-size:13px">'+esc(row.username||row.user_id||'—')+'</td>'+
+      '<td style="font-size:10px;color:var(--muted);font-family:monospace;max-width:100px;overflow:hidden;text-overflow:ellipsis" title="'+esc(row.session_id)+'">'+esc((row.session_id||'—').slice(0,16))+'</td>'+
+      '<td style="font-size:10px;color:var(--muted);font-family:monospace;max-width:80px;overflow:hidden;text-overflow:ellipsis" title="'+esc(row.round_id)+'">'+esc((row.round_id||'—').slice(0,12))+'</td>'+
+      '<td style="font-weight:700;color:'+(amt>0?'#f87171':'var(--muted)')+'">'+
+        ((row.action==='wager'||row.action==='result')? '$'+amt.toFixed(2) : (amt>0?'$'+amt.toFixed(2):'—'))+'</td>'+
+      '<td style="color:var(--muted);font-size:12px">'+(bb>0?'$'+bb.toFixed(2):'—')+'</td>'+
+      '<td style="color:#4ade80;font-size:12px;font-weight:600">'+(ba>0?'$'+ba.toFixed(2):'—')+'</td>'+
+      '<td>'+
+        (isErr
+          ? '<span class="badge" style="background:rgba(239,68,68,.12);color:#f87171" title="'+esc(row.error_msg)+'">error</span>'
+          : '<span class="badge" style="background:rgba(34,197,94,.08);color:#4ade80">ok</span>'
+        )+'</td>'+
+    '</tr>';
+  }).join('');
+}
+
+function exportLogsCSV() {
+  if (!logsData.length) { toast('No data to export', false); return; }
+  const from = document.getElementById('log-from').value;
+  const to   = document.getElementById('log-to').value;
+  const header = 'Time,Action,Player,Session,Round,Amount,BalanceBefore,BalanceAfter,Status,Error';
+  const rows = logsData.map(function(r) {
+    return [
+      new Date(r.created_at).toISOString(),
+      r.action, r.username||r.user_id,
+      r.session_id, r.round_id,
+      r.amount, r.balance_before, r.balance_after,
+      r.response_status, r.error_msg||''
+    ].map(function(v){ return '"'+String(v||'').replace(/"/g,'""')+'"'; }).join(',');
+  });
+  const csv = [header].concat(rows).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = 'wallet_logs_'+from+'_'+to+'.csv';
+  a.click();
+}
+
+// ── AUTH ──────────────────────────────────────────────────────────────────────
+async function doLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass  = document.getElementById('loginPass').value;
+  document.getElementById('gate-err').textContent = '';
+  try {
+    const r = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: pass })
+    });
+    const d = await r.json();
+    if (d.token && d.user?.role === 'admin') {
+      token = d.token;
+      localStorage.setItem('admin_token', token);
+      const a = (d.user.name || d.user.email || 'A')[0].toUpperCase();
+      document.getElementById('adminAvatar').textContent = a;
+      document.getElementById('adminName').textContent = d.user.name || d.user.email;
+      document.getElementById('gate').style.display = 'none';
+      document.getElementById('app').classList.add('ready');
+      initApp();
+    } else {
+      document.getElementById('gate-err').textContent = d.error || 'Invalid credentials or not an admin';
+    }
+  } catch {
+    document.getElementById('gate-err').textContent = 'Connection error';
+  }
+}
+
+function doLogout() {
+  token = '';
+  localStorage.removeItem('admin_token');
+  clearInterval(refreshTimer);
+  location.reload();
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+function initApp() {
+  loadAll();
+  clearInterval(refreshTimer);
+  refreshTimer = setInterval(loadAll, 15000);
+}
+
+async function loadAll() {
+  try {
+    const r = await fetch('/api/operator/admin/list', { headers: { Authorization: 'Bearer ' + token } });
+    if (r.status === 401) { doLogout(); return; }
+    operators = await r.json();
+    renderStats();
+    renderOpsTable();
+    renderDashTable();
+    updatePendingBadge();
+  } catch {}
+}
+
+// ── STATS ─────────────────────────────────────────────────────────────────────
+function renderStats() {
+  const pending = operators.filter(o => o.status === 'pending_approval').length;
+  const totalBal = operators.reduce((s, o) => s + parseFloat(o.balance || 0), 0);
+  document.getElementById('st-ops').textContent = operators.length;
+  document.getElementById('st-pending').textContent = pending + ' pending';
+  document.getElementById('st-funds').textContent = '$' + totalBal.toFixed(2);
+  // players count from API
+  fetch('/api/operator/admin/stats', { headers: { Authorization: 'Bearer ' + token } })
+    .then(r => r.json()).then(d => {
+      if (d.players !== undefined) document.getElementById('st-players').textContent = d.players;
+    }).catch(() => {});
+}
+
+function updatePendingBadge() {
+  const n = operators.filter(o => o.status === 'pending_approval').length;
+  const el = document.getElementById('pendingBadge');
+  el.style.display = n ? 'inline-flex' : 'none';
+  el.textContent = n;
+}
+
+// ── TABLES ────────────────────────────────────────────────────────────────────
+function renderOpsTable() {
+  const el = document.getElementById('opsTable');
+  if (!operators.length) { el.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px">No operators yet</td></tr>'; return; }
+  el.innerHTML = operators.map(op => `
+    <tr>
+      <td>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#667eea,#764ba2);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0">${(op.username||'?')[0].toUpperCase()}</div>
+          <div>
+            <div style="font-weight:600;font-size:13px">${esc(op.username)}</div>
+            <div style="font-size:11px;color:var(--muted)">${esc(op.email)}</div>
+          </div>
+        </div>
+      </td>
+      <td style="font-weight:700;color:#22c55e">$${parseFloat(op.balance||0).toFixed(2)}</td>
+      <td style="color:var(--muted)">${op.player_count ?? '—'}</td>
+      <td><span class="badge badge-${op.status}">${op.status.replace(/_/g,' ')}</span></td>
+      <td style="color:var(--muted);font-size:12px">${fmtDate(op.created_at)}</td>
+      <td>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-ghost btn-sm" onclick="openDetail('${op.id}')">Open →</button>
+          ${op.status==='pending_approval'?`<button class="btn btn-green btn-sm" onclick="approveOp('${op.id}',event)">✓</button>`:''}
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function renderDashTable() {
+  const el = document.getElementById('dashOpTable');
+  const ops = operators.slice(0, 5);
+  if (!ops.length) { el.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px">No operators yet</td></tr>'; return; }
+  el.innerHTML = ops.map(op => `
+    <tr>
+      <td>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,#667eea,#764ba2);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff">${(op.username||'?')[0].toUpperCase()}</div>
+          <span style="font-weight:500;font-size:13px">${esc(op.username)}</span>
+        </div>
+      </td>
+      <td style="font-weight:700;color:#22c55e;font-size:13px">$${parseFloat(op.balance||0).toFixed(2)}</td>
+      <td style="color:var(--muted);font-size:13px">${op.player_count ?? '—'}</td>
+      <td><span class="badge badge-${op.status}">${op.status.replace(/_/g,' ')}</span></td>
+      <td style="color:var(--muted);font-size:12px">${fmtDate(op.created_at)}</td>
+      <td><button class="btn btn-ghost btn-sm" onclick="openDetail('${op.id}')">Open →</button></td>
+    </tr>
+  `).join('');
+}
+
+// ── TRANSACTIONS TAB ──────────────────────────────────────────────────────────
+async function loadTxPage() {
+  const el = document.getElementById('txTable');
+  el.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:32px">Loading…</td></tr>';
+  try {
+    const all = [];
+    for (const op of operators) {
+      const r = await fetch(`/api/operator/transactions?type=all`, { headers: { Authorization: 'Bearer ' + token } });
+    }
+    // Fetch from each operator's transactions via admin (simplified - just show combined)
+    const r = await fetch('/api/operator/admin/transactions', { headers: { Authorization: 'Bearer ' + token } });
+    const d = await r.json();
+    const txs = Array.isArray(d) ? d : (d.transactions || []);
+    if (!txs.length) { el.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:32px">No transactions</td></tr>'; return; }
+    el.innerHTML = txs.map(t => `
+      <tr>
+        <td style="font-size:12px;color:var(--muted)">${fmtDate(t.created_at)}</td>
+        <td style="font-size:13px">${esc(t.operator_username||t.operator_id||'—')}</td>
+        <td><span class="badge" style="background:rgba(245,158,11,.1);color:var(--gold)">${(t.type||'').replace(/_/g,' ')}</span></td>
+        <td style="font-weight:700;color:${t.type&&t.type.includes('debit')||t.type&&t.type.includes('withdraw')?'var(--red)':'var(--green)'}">
+          ${t.type&&(t.type.includes('debit')||t.type.includes('withdraw'))?'-':'+'} $${parseFloat(t.amount||0).toFixed(2)}
+        </td>
+        <td style="font-size:12px;color:var(--muted)">${esc(t.note||'—')}</td>
+      </tr>
+    `).join('');
+  } catch { el.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--red);padding:32px">Error loading</td></tr>'; }
+}
+
+// ── NAVIGATION ────────────────────────────────────────────────────────────────
+function navTo(section, el) {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
+  document.getElementById('sec-' + section).classList.add('active');
+  const titles = { dashboard:'Dashboard', operators:'Operators', transactions:'Transactions', create:'Add Operator', accounting:'Accounting', logs:'API Logs' };
+  document.getElementById('pageTitle').textContent = titles[section] || section;
+  if (section === 'transactions') loadTxPage();
+  if (section === 'accounting') loadAccounting();
+  if (section === 'logs') { initLogPlayers(); setLogPeriod('today'); }
+}
+
+// ── DETAIL PANEL ──────────────────────────────────────────────────────────────
+function openDetail(opId) {
+  const op = operators.find(o => o.id === opId);
+  if (!op) return;
+  currentOp = op;
+  document.getElementById('d-avatar').textContent = (op.username||'?')[0].toUpperCase();
+  document.getElementById('d-name').textContent = op.username;
+  document.getElementById('d-email').textContent = op.email;
+  document.getElementById('opDetail').classList.add('open');
+  document.getElementById('detailOverlay').classList.add('open');
+  detailTab('info', document.querySelector('.detail-tab'));
+}
+
+function closeDetail() {
+  document.getElementById('opDetail').classList.remove('open');
+  document.getElementById('detailOverlay').classList.remove('open');
+  currentOp = null;
+}
+
+function detailTab(tab, el) {
+  document.querySelectorAll('.detail-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  loadDetailContent(tab);
+}
+
+async function loadDetailContent(tab) {
+  const op = currentOp;
+  if (!op) return;
+  const cont = document.getElementById('detailContent');
+
+  if (tab === 'info') {
+    const st = op.status;
+    cont.innerHTML = `
+      <div style="margin-bottom:20px">
+        <div class="info-row"><span class="info-key">ID</span><span class="info-val" style="font-family:monospace;font-size:11px;color:var(--muted)">${op.id}</span></div>
+        <div class="info-row"><span class="info-key">Username</span><span class="info-val">${esc(op.username)}</span></div>
+        <div class="info-row"><span class="info-key">Email</span><span class="info-val">${esc(op.email)}</span></div>
+        <div class="info-row"><span class="info-key">Currency</span><span class="info-val">${op.currency}</span></div>
+        <div class="info-row"><span class="info-key">Status</span><span class="badge badge-${op.status}">${op.status.replace(/_/g,' ')}</span></div>
+        <div class="info-row"><span class="info-key">Balance</span><span class="info-val" style="color:var(--green);font-size:18px;font-weight:700">$${parseFloat(op.balance||0).toFixed(2)}</span></div>
+        <div class="info-row"><span class="info-key">Created</span><span class="info-val">${fmtDate(op.created_at)}</span></div>
+        ${op.approved_at?`<div class="info-row"><span class="info-key">Approved</span><span class="info-val">${fmtDate(op.approved_at)}</span></div>`:''}
+        ${op.notes?`<div class="info-row"><span class="info-key">Notes</span><span class="info-val">${esc(op.notes)}</span></div>`:''}
+      </div>
+      ${st==='pending_approval'?`
+        <div style="display:flex;gap:8px;margin-bottom:10px">
+          <button class="btn btn-green" style="flex:1" onclick="approveOp('${op.id}')">✓ Approve</button>
+          <button class="btn btn-danger" style="flex:1" onclick="rejectOpPrompt('${op.id}')">✗ Reject</button>
+        </div>
+      `:''}
+    `;
+
+  } else if (tab === 'balance') {
+    cont.innerHTML = `
+      <div class="balance-display">
+        <div class="balance-amount">$${parseFloat(op.balance||0).toFixed(2)}</div>
+        <div class="balance-label">Current Balance</div>
+      </div>
+      <div class="balance-section">
+        <div id="balMode" style="display:flex;gap:8px;margin-bottom:14px">
+          <button class="btn btn-green" style="flex:1" onclick="showBalForm('credit')">💰 Credit</button>
+          <button class="btn btn-danger" style="flex:1" onclick="showBalForm('debit')">💸 Debit</button>
+        </div>
+        <div id="balForm" style="display:none">
+          <div class="form-group">
+            <div class="form-label" id="balFormLabel">Amount ($)</div>
+            <input class="form-input" id="balAmt" type="number" placeholder="0.00" min="0.01" step="0.01">
+          </div>
+          <div class="form-group">
+            <div class="form-label">Note</div>
+            <input class="form-input" id="balNote" placeholder="Optional note">
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-primary" id="balSubmitBtn" onclick="submitBalance()" style="flex:1">Confirm</button>
+            <button class="btn btn-ghost" onclick="document.getElementById('balForm').style.display='none'" style="flex:1">Cancel</button>
+          </div>
+          <div class="status-msg" id="balStatus"></div>
+        </div>
+      </div>
+    `;
+
+  } else if (tab === 'players') {
+    cont.innerHTML = '<div style="color:var(--muted);padding:20px;text-align:center">Loading…</div>';
+    try {
+      const r = await fetch(`/api/operator/admin/${op.id}/players`, { headers: { Authorization: 'Bearer ' + token } });
+      const players = await r.json();
+      if (!players.length) { cont.innerHTML = '<div style="color:var(--muted);padding:20px;text-align:center">No players yet</div>'; return; }
+      cont.innerHTML = players.map(p => `
+        <div class="player-row">
+          <div class="player-avatar">${(p.username||'?')[0].toUpperCase()}</div>
+          <div style="flex:1">
+            <div class="player-name">${esc(p.username)}</div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <span class="player-bal">$${parseFloat(p.balance||0).toFixed(2)}</span>
+              <span class="player-status">${p.in_game?'🎮 In Game':'Lobby'}</span>
+            </div>
+          </div>
+          <div class="player-actions">
+            <button class="btn btn-green btn-sm" onclick="playerTx('${op.id}','${p.id}','deposit',${!!p.in_game})">Cashin</button>
+            <button class="btn btn-danger btn-sm" onclick="playerTx('${op.id}','${p.id}','withdraw',${!!p.in_game})">Cashout</button>
+            <button class="btn btn-danger btn-sm" style="opacity:.8" ${p.in_game||parseFloat(p.balance||0)<=0?'disabled':''} onclick="cashoutAll('${op.id}','${p.id}','${esc(p.username)}',${parseFloat(p.balance||0)})">All</button>
+            <button class="btn btn-sm" style="background:rgba(239,68,68,.08);color:var(--red);padding:5px 7px" onclick="deletePlayer('${op.id}','${p.id}','${esc(p.username)}')">🗑</button>
+          </div>
+        </div>
+      `).join('');
+    } catch { cont.innerHTML = '<div style="color:var(--red);padding:20px">Error loading players</div>'; }
+
+  } else if (tab === 'chat') {
+    cont.innerHTML = '<div style="color:var(--muted);padding:20px;text-align:center">Loading…</div>';
+    try {
+      const r = await fetch(`/api/operator/admin/${op.id}/chat`, { headers: { Authorization: 'Bearer ' + token } });
+      const msgs = await r.json();
+      const chatHtml = msgs.length
+        ? msgs.map(m => `<div class="chat-msg ${m.sender}"><div>${esc(m.message)}</div><div class="chat-meta">${m.sender} · ${fmtDate(m.created_at)}</div></div>`).join('')
+        : '<div style="color:var(--muted);text-align:center;padding:20px">No messages yet</div>';
+      cont.innerHTML = `
+        <div class="chat-messages" id="chatMsgs">${chatHtml}</div>
+        <div class="chat-input-row">
+          <input class="form-input" id="chatInput" placeholder="Message to operator…" onkeydown="if(event.key==='Enter')sendChat('${op.id}')">
+          <button class="btn btn-primary" onclick="sendChat('${op.id}')">Send</button>
+        </div>
+      `;
+      const msgs_el = document.getElementById('chatMsgs');
+      if (msgs_el) msgs_el.scrollTop = msgs_el.scrollHeight;
+    } catch { cont.innerHTML = '<div style="color:var(--red);padding:20px">Error loading chat</div>'; }
+
+  } else if (tab === 'providers') {
+    cont.innerHTML = '<div style="color:var(--muted);padding:20px;text-align:center">Loading…</div>';
+    try {
+      const r = await fetch(`/api/operator/admin/${op.id}/providers`, { headers: { Authorization: 'Bearer ' + token } });
+      const provs = await r.json();
+      cont.innerHTML = provs.map(p => `
+        <div class="prov-item">
+          <div>
+            <div class="prov-name">${esc(p.name)}</div>
+            <div class="prov-games">${p.game_count||''} games</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" ${p.enabled?'checked':''} onchange="setProvider('${op.id}','${p.id}',this.checked)">
+            <div class="toggle-track"></div>
+            <div class="toggle-knob"></div>
+          </label>
+        </div>
+      `).join('');
+    } catch { cont.innerHTML = '<div style="color:var(--red);padding:20px">Error loading providers</div>'; }
+  }
+}
+
+// ── BALANCE ───────────────────────────────────────────────────────────────────
+let balMode = 'credit';
+function showBalForm(mode) {
+  balMode = mode;
+  document.getElementById('balFormLabel').textContent = mode === 'credit' ? '💰 Credit Amount ($)' : '💸 Debit Amount ($)';
+  document.getElementById('balSubmitBtn').textContent = mode === 'credit' ? 'Confirm Credit' : 'Confirm Debit';
+  document.getElementById('balSubmitBtn').className = 'btn ' + (mode === 'credit' ? 'btn-green' : 'btn-danger');
+  document.getElementById('balAmt').value = '';
+  document.getElementById('balNote').value = '';
+  document.getElementById('balStatus').className = 'status-msg';
+  document.getElementById('balForm').style.display = 'block';
+  document.getElementById('balAmt').focus();
+}
+
+async function submitBalance() {
+  const amt = parseFloat(document.getElementById('balAmt').value);
+  const note = document.getElementById('balNote').value;
+  if (!amt || amt <= 0) { showStatus('balStatus','Enter valid amount',false); return; }
+  const op = currentOp;
+  const btn = document.getElementById('balSubmitBtn');
+  btn.disabled = true; btn.textContent = 'Processing…';
+  const endpoint = balMode === 'credit' ? 'credit' : 'debit';
+  const r = await fetch(`/api/operator/admin/${op.id}/${endpoint}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+    body: JSON.stringify({ amount: amt, note })
+  });
+  const d = await r.json();
+  btn.disabled = false;
+  btn.textContent = balMode === 'credit' ? 'Confirm Credit' : 'Confirm Debit';
+  if (d.ok) {
+    toast(`✅ ${balMode === 'credit' ? 'Credited' : 'Debited'} $${amt.toFixed(2)}`, true);
+    document.getElementById('balForm').style.display = 'none';
+    await loadAll();
+    // Refresh balance display
+    const updatedOp = operators.find(o => o.id === op.id);
+    if (updatedOp) { currentOp = updatedOp; loadDetailContent('balance'); }
+  } else { showStatus('balStatus', d.error || 'Error', false); }
+}
+
+// ── PLAYER ACTIONS ────────────────────────────────────────────────────────────
+async function playerTx(opId, playerId, type, inGame) {
+  if (inGame && type === 'withdraw') { toast('Cannot cashout while player is in-game', false); return; }
+  const label = type === 'deposit' ? 'Cashin' : 'Cashout';
+  const amt = prompt(label + ' amount ($):');
+  if (!amt || isNaN(parseFloat(amt)) || parseFloat(amt) <= 0) return;
+  const r = await fetch(`/api/operator/players/${playerId}/${type}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+    body: JSON.stringify({ amount: parseFloat(amt) })
+  });
+  const d = await r.json();
+  if (d.ok) { toast(label + ' successful', true); loadDetailContent('players'); loadAll(); }
+  else toast('Error: ' + (d.error || r.status), false);
+}
+
+async function cashoutAll(opId, playerId, username, balance) {
+  if (!balance || balance <= 0) return;
+  if (!confirm('Cashout all $' + balance.toFixed(2) + ' from ' + username + '?')) return;
+  const r = await fetch(`/api/operator/players/${playerId}/withdraw`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+    body: JSON.stringify({ amount: balance, note: 'Cashout All by admin' })
+  });
+  const d = await r.json();
+  if (d.ok) { toast('Cashed out $' + balance.toFixed(2), true); loadDetailContent('players'); loadAll(); }
+  else toast('Error: ' + (d.error || r.status), false);
+}
+
+async function deletePlayer(opId, playerId, username) {
+  if (!confirm('Delete "' + username + '"?\nBalance returned to operator. Transactions preserved.')) return;
+  const r = await fetch(`/api/operator/admin/${opId}/players/${playerId}`, {
+    method: 'DELETE', headers: { Authorization: 'Bearer ' + token }
+  });
+  const d = await r.json().catch(() => ({}));
+  if (r.ok) {
+    toast('Player deleted' + (d.returned > 0 ? '. $' + d.returned.toFixed(2) + ' returned' : ''), true);
+    loadDetailContent('players'); loadAll();
+  } else toast('Error: ' + (d.error || r.status), false);
+}
+
+// ── APPROVE / REJECT ──────────────────────────────────────────────────────────
+async function approveOp(id, ev) {
+  if (ev) ev.stopPropagation();
+  if (!confirm('Approve this operator?')) return;
+  const r = await fetch(`/api/operator/admin/${id}/approve`, { method: 'POST', headers: { Authorization: 'Bearer ' + token } });
+  const d = await r.json();
+  if (d.ok) { toast('Operator approved ✓', true); loadAll(); if (currentOp?.id === id) loadDetailContent('info'); }
+  else toast(d.error || 'Error', false);
+}
+
+async function rejectOpPrompt(id) {
+  const reason = prompt('Rejection reason (optional):');
+  if (reason === null) return;
+  const r = await fetch(`/api/operator/admin/${id}/reject`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+    body: JSON.stringify({ reason })
+  });
+  const d = await r.json();
+  if (d.ok) { toast('Operator rejected', true); loadAll(); loadDetailContent('info'); }
+  else toast(d.error || 'Error', false);
+}
+
+// ── PROVIDERS ─────────────────────────────────────────────────────────────────
+async function setProvider(opId, providerId, enabled) {
+  await fetch(`/api/operator/admin/${opId}/providers/${providerId}`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+    body: JSON.stringify({ enabled })
+  });
+  toast((enabled ? 'Enabled' : 'Disabled') + ' provider', true);
+}
+
+// ── CHAT ──────────────────────────────────────────────────────────────────────
+async function sendChat(opId) {
+  const inp = document.getElementById('chatInput');
+  const msg = inp?.value?.trim();
+  if (!msg) return;
+  inp.value = '';
+  await fetch(`/api/operator/admin/${opId}/chat`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+    body: JSON.stringify({ message: msg })
+  });
+  loadDetailContent('chat');
+}
+
+// ── CREATE OPERATOR ───────────────────────────────────────────────────────────
+async function createOperator() {
+  const username = document.getElementById('c-username').value.trim();
+  const email    = document.getElementById('c-email').value.trim();
+  const password = document.getElementById('c-password').value;
+  const currency = document.getElementById('c-currency').value;
+  const bal      = parseFloat(document.getElementById('c-balance').value) || 0;
+  const notes    = document.getElementById('c-notes').value.trim();
+  if (!username || !email || !password) { showStatus('createStatus','Fill username, email and password',false); return; }
+  const btn = document.getElementById('createBtn');
+  btn.disabled = true; btn.textContent = 'Creating…';
+  const r = await fetch('/api/operator/admin/create', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+    body: JSON.stringify({ username, email, password, currency, initialBalance: bal, notes })
+  });
+  const d = await r.json();
+  btn.disabled = false; btn.textContent = 'Create Operator';
+  if (r.ok) {
+    showStatus('createStatus', '✅ Operator "' + d.operator?.username + '" created!', true);
+    ['c-username','c-email','c-password','c-balance','c-notes'].forEach(i => document.getElementById(i).value = '');
+    loadAll();
+  } else showStatus('createStatus', '❌ ' + (d.error || 'Failed'), false);
+}
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function fmtDate(d) {
+  if (!d) return '—';
+  try {
+    const dt = new Date(d);
+    return dt.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'}) + ' ' +
+           dt.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  } catch { return '—'; }
+}
+
+function showStatus(id, msg, ok) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = msg;
+  el.className = 'status-msg ' + (ok ? 'ok' : 'err');
+}
+
+let toastTimer;
+function toast(msg, ok) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast ' + (ok ? 'ok' : 'err');
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// ── AUTO-LOGIN ────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('loginPass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+  // Default accounting to current month
+  const _now = new Date();
+  const _pad = n => String(n).padStart(2,'0');
+  document.getElementById('acct-from').value = _now.getFullYear()+'-'+_pad(_now.getMonth()+1)+'-01';
+  document.getElementById('acct-to').value   = _now.getFullYear()+'-'+_pad(_now.getMonth()+1)+'-'+_pad(_now.getDate());
+  if (token) {
+    // Verify token and auto-login
+    fetch('/api/operator/admin/list', { headers: { Authorization: 'Bearer ' + token } })
+      .then(r => {
+        if (r.ok) {
+          document.getElementById('gate').style.display = 'none';
+          document.getElementById('app').classList.add('ready');
+          initApp();
+        }
+      }).catch(() => {});
+  }
+});
+</script>
+</body>
+</html>
