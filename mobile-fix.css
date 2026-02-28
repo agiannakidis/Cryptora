@@ -1,0 +1,304 @@
+/* ============================================================
+   Cryptora Mobile Touch Fix v2
+   Fixes: 300ms tap delay, missing active feedback,
+          small touch targets, sticky hover states,
+          slider dots size, scroll-snap regressions
+   ============================================================ */
+
+/* 1. Remove 300ms tap delay on ALL interactive elements */
+a, button, input, select, textarea, label,
+[role="button"], [role="tab"], [role="menuitem"],
+[role="option"], [role="checkbox"], [role="switch"],
+[tabindex], .cursor-pointer {
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+}
+
+/* 2. Instant visual feedback on tap (active state) */
+button:active,
+[role="button"]:active,
+a:active,
+[tabindex]:active {
+  opacity: 0.75 !important;
+  transform: scale(0.97) !important;
+  transition: opacity 0.05s, transform 0.05s !important;
+}
+
+/* 3. Minimum tap target 44×44px (Apple HIG recommendation)
+   ⚠️ Только для настоящих interactive buttons, не для декоративных */
+button,
+[role="button"],
+[role="tab"],
+[role="menuitem"] {
+  min-height: 44px;
+  min-width: 44px;
+  /* display не трогаем — Tailwind ставит flex/inline-flex сам */
+  align-items: center !important;
+}
+
+/* Исключения — декоративные/визуальные кнопки, которые НЕ должны быть 44px */
+/* Slider dots (h-1.5, w-1.5, h-2, w-2) */
+button[class*="h-1."],
+button[class*="w-1."],
+button[class*="h-2 "],
+button[class*=" h-2 "],
+button[class*="w-2 "],
+button[class*=" w-2 "],
+button[class*="rounded-full"][class*="h-1"],
+button[class*="rounded-full"][class*="w-1"] {
+  min-height: unset !important;
+  min-width: unset !important;
+  align-items: unset !important;
+}
+
+/* Иконки h-8, h-9 — небольшие кнопки с псевдоэлементом для tap zone */
+button.h-8, button.h-9,
+button[class*=" h-8"], button[class*=" h-9"],
+button[class*=" w-8"], button[class*=" w-9"] {
+  min-height: unset;
+  min-width: unset;
+  position: relative;
+}
+button.h-8::after, button.h-9::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* 4. Kill sticky hover on touch devices */
+@media (hover: none) and (pointer: coarse) {
+  a:hover,
+  button:hover {
+    background-color: unset !important;
+  }
+  a:active,
+  button:active {
+    opacity: 0.8;
+  }
+}
+
+/* 5. Bottom nav bar — larger tap targets */
+nav a,
+nav button {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 6. Game cards — full area tappable */
+.cursor-pointer {
+  touch-action: manipulation;
+}
+
+/* 7. Input fields — prevent zoom on iOS (font-size >= 16px) */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="tel"],
+input[type="search"],
+select,
+textarea {
+  font-size: 16px !important;
+  touch-action: manipulation;
+}
+
+/* 8. Modals/sheets — smooth scroll inside */
+[data-radix-scroll-area-viewport],
+[class*="overflow-y-auto"],
+[class*="overflow-auto"] {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* 9. Slider / carousel — horizontal swipe (БЕЗ scroll-snap — ломает табы) */
+[class*="overflow-x-auto"] {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  /* scroll-snap убран — ломал категорийные табы */
+}
+
+/* 10. Prevent text selection on interactive elements */
+button, [role="button"], nav a,
+.select-none {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* 11. Fix bottom navigation covering content on iOS */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .bottom-0,
+  [class*="fixed"][class*="bottom"] {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* 12. Faster transitions on mobile to feel more responsive */
+@media (max-width: 768px) {
+  .transition,
+  .transition-all,
+  .transition-colors {
+    transition-duration: 100ms !important;
+  }
+  
+  /* Game grid — 2 columns on mobile */
+  .grid-cols-2 {
+    gap: 0.5rem;
+  }
+}
+
+/* 13. Активное состояние через JS-класс .touching */
+.touching {
+  opacity: 0.72 !important;
+  transform: scale(0.96) !important;
+  transition: opacity 0.05s ease, transform 0.05s ease !important;
+}
+
+/* 14. Плавный фидбек для карточек игр */
+.touching img {
+  filter: brightness(0.88) !important;
+}
+
+/* 15. Убрать focus ring на touch (он мигает после тапа) */
+@media (pointer: coarse) {
+  *:focus:not(:focus-visible) {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+  button:focus,
+  a:focus,
+  [role='button']:focus {
+    outline: none !important;
+  }
+}
+
+/* 16. Плавный скролл + запрет bounce на iOS */
+html {
+  scroll-behavior: smooth;
+  overscroll-behavior-y: none;
+}
+body {
+  overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 17. Основной контент — избегаем overflow issues */
+#root {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+/* 18. Игровые карточки — область тапа максимальная */
+.group,
+[class*='game-card'],
+[class*='GameCard'] {
+  touch-action: manipulation;
+}
+
+/* 19. Кнопки с градиентом/цветом — явный active */
+[class*='bg-yellow'],
+[class*='bg-amber'],
+[class*='bg-green'],
+[class*='bg-blue'] {
+  touch-action: manipulation;
+}
+[class*='bg-yellow']:active,
+[class*='bg-amber']:active,
+[class*='bg-green']:active {
+  filter: brightness(0.88) !important;
+  transition: filter 0.05s !important;
+}
+
+/* 20. Нижняя навигация — больше области касания */
+@media (max-width: 768px) {
+  nav, 
+  [class*='bottom-nav'],
+  [class*='BottomNav'] {
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+  }
+}
+
+/* 21. Иконки внутри кнопок не должны блокировать тап */
+button > *,
+[role='button'] > *,
+a > * {
+  pointer-events: none;
+}
+/* Но сами кнопки — да */
+button,
+[role='button'],
+a {
+  pointer-events: auto;
+}
+
+/* 22. Slider pagination dots — точный размер без override min-size */
+/* Эти dots абсолютно позиционированы внутри баннера, не должны раздуваться */
+button[class*="rounded-full"][class*="h-1"],
+button[class*="rounded-full"][class*="w-1"] {
+  min-height: unset !important;
+  min-width: unset !important;
+}
+
+/* ===== DEPOSIT MODAL — стабилизация позиции =====
+   Проблема: модалка использует top:50% + translateY(-50%)
+   При смене валюты React меняет высоту → transform пересчитывается → прыжок
+   Фикс: прибить top к 5vh, убрать вертикальный translate
+   ================================================ */
+[role="dialog"][data-state="open"] {
+  top: 5vh !important;
+  transform: translateX(-50%) !important;
+  max-height: 90vh !important;
+  overflow-y: auto !important;
+}
+
+/* ===== BANNER CAROUSEL — скрыть prev/next стрелки на мобильном =====
+   На мобильном пользователи свайпают; стрелки торчат ниже изображения
+   и выглядят как баг в зазоре между баннером и джекпотом
+   ================================================================== */
+@media (max-width: 1023px) {
+  button[class*="absolute"][class*="left-3"][class*="rounded-full"],
+  button[class*="absolute"][class*="right-3"][class*="rounded-full"] {
+    display: none !important;
+  }
+}
+
+/* 23. Category tabs — fix text clipping on mobile */
+@media (max-width: 768px) {
+  /* Контейнер табов — горизонтальный скролл без обрезки */
+  [class*='overflow-x-auto']:has([role='tab']),
+  [class*='flex'][class*='overflow-x'] {
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Сами таб-кнопки — текст не переносить, нормальный паддинг */
+  [role='tab'],
+  button[role='tab'] {
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+    min-width: unset !important;
+    font-size: 14px !important;
+  }
+}
+
+/* Кнопки БЕЗ иконок (только текст) — центрируем полностью */
+button:not(:has(svg)):not(:has(img)),
+[role="tab"]:not(:has(svg)):not(:has(img)) {
+  justify-content: center !important;
+  text-align: center !important;
+}
+
+/* ===== CATEGORY TABS — не сжимать кнопки, пусть строка скроллится =====
+   flex-shrink:1 + overflow-x:auto сжимают кнопки вместо горизонтального скролла
+   ======================================================================= */
+[class*="overflow-x-auto"] button,
+[class*="overflow-x"] button {
+  flex-shrink: 0 !important;
+}

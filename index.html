@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'><defs><linearGradient id='g' x1='20%25' y1='0%25' x2='80%25' y2='100%25'><stop offset='0%25' stop-color='%23FFF0A0'/><stop offset='40%25' stop-color='%23FFBB00'/><stop offset='100%25' stop-color='%23E05500'/></linearGradient></defs><circle cx='30' cy='30' r='29' fill='%230a0e1a'/><polygon points='30,5 55,30 30,56 5,30' fill='%23FFBB00' fill-opacity='0.15'/><polygon points='30,5 55,30 30,56 5,30' fill='none' stroke='url(%23g)' stroke-width='1.8'/><line x1='5' y1='30' x2='55' y2='30' stroke='%23FFBB00' stroke-width='0.7' stroke-opacity='0.5'/><line x1='30' y1='5' x2='30' y2='22' stroke='white' stroke-width='0.6' stroke-opacity='0.4'/><polygon points='30,18 38,30 30,42 22,30' fill='none' stroke='%23FFBB00' stroke-width='0.7' stroke-opacity='0.6'/><circle cx='20' cy='14' r='2' fill='white' fill-opacity='0.85'/><line x1='20' y1='10' x2='20' y2='18' stroke='white' stroke-width='0.8' stroke-opacity='0.5'/><line x1='16' y1='14' x2='24' y2='14' stroke='white' stroke-width='0.8' stroke-opacity='0.5'/></svg>" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="description" content="Cryptora — Crypto Casino. Slots, Live Games, Sports. Fast payouts in BTC, ETH, USDT and more." />
+    <meta property="og:title" content="Cryptora — Crypto Casino" />
+    <meta property="og:description" content="Play slots and win crypto. Fast deposits & withdrawals in 10+ blockchains." />
+    <title>Cryptora — Crypto Casino</title>
+    <!-- Rajdhani font for logo wordmark -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@700&display=swap" rel="stylesheet" />
+    <script src="/mobile-fix.js?v=2"></script>
+  <script src="/mobile-game-launch.js?v=2"></script>
+    <script type="module" crossorigin src="/assets/index-Cm7OmuJh.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-CVr8qHl5.css">
+    <link rel=stylesheet href=/mobile-fix.css />
+  <style>body[data-page=admin] #cr-ticker { display:none !important; }</style></head>
+  <body>
+    <div id="root"></div>
+  <script src="/deposit-rate-info.js?v=3"></script>
+  <script src="/ticker.js?v=2"></script>
+  <script src="/admin-add-operator.js?v=1"></script>
+  <script src="/balance-refresh.js?v=1"></script>
+
+<script id="admin-operator-btn">
+// Inject "Operators" link into admin sidebar/nav
+(function() {
+  function injectOperatorLink() {
+    // Look for admin nav elements
+    const selectors = [
+      'a[href="/admin/players"]',
+      'a[href*="players"]',
+      '[class*="sidebar"] a',
+      'nav a',
+      '[class*="nav"] a'
+    ];
+    for (const sel of selectors) {
+      const links = document.querySelectorAll(sel);
+      for (const link of links) {
+        if (link.href && link.href.includes('/admin') && !document.getElementById('op-nav-link')) {
+          const li = link.closest('li') || link.parentElement;
+          const newEl = li.cloneNode(true);
+          const newLink = newEl.querySelector('a') || newEl;
+          if (newLink.tagName === 'A') {
+            newLink.href = '/admin/operators';
+            newLink.id = 'op-nav-link';
+            newLink.removeAttribute('data-discover');
+          }
+          // Update text content
+          const textNodes = newEl.querySelectorAll('span, p, div');
+          let changed = false;
+          for (const t of textNodes) {
+            if (t.children.length === 0 && t.textContent.trim()) {
+              t.textContent = 'Operators';
+              changed = true; break;
+            }
+          }
+          if (!changed) newEl.textContent = 'Operators';
+          li.parentElement.appendChild(newEl);
+
+          // Add notification badge if there are pending operators
+          fetch('/api/operator/admin/list', {
+            headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('auth_token') || '') }
+          }).then(r => r.json()).then(ops => {
+            const pending = Array.isArray(ops) ? ops.filter(o => o.status === 'pending_approval').length : 0;
+            const unread = Array.isArray(ops) ? ops.reduce((s,o) => s + parseInt(o.unread||0), 0) : 0;
+            const total = pending + unread;
+            if (total > 0) {
+              const badge = document.createElement('span');
+              badge.textContent = total;
+              badge.style.cssText = 'background:#ef4444;color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;font-weight:800;margin-left:6px;';
+              newEl.appendChild(badge);
+            }
+          }).catch(() => {});
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  // Try immediately and then watch for React render
+  let attempts = 0;
+  const interval = setInterval(() => {
+    if (injectOperatorLink() || ++attempts > 40) clearInterval(interval);
+  }, 500);
+})();
+</script>
+
+<script src=/banner-upload.js></script></body>
+</html>
+<script>
+// Kill ticker completely on /admin
+(function(){
+  function nuke(){ var e=document.getElementById('cr-ticker'); if(e)e.remove(); }
+  function check(){ if(location.pathname.indexOf('/admin')===0) nuke(); }
+  var op=history.pushState; history.pushState=function(){ op.apply(this,arguments); check(); };
+  var or=history.replaceState; history.replaceState=function(){ or.apply(this,arguments); check(); };
+  window.addEventListener('popstate', check);
+  setInterval(check, 300);
+})();
+</script>

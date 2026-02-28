@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cryptora — Ticker Admin</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #080c18; color: #e2e8f0; font-family: system-ui, sans-serif; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .card { background: #141829; border: 1px solid #252b45; border-radius: 12px; padding: 32px; width: 100%; max-width: 520px; }
+  h1 { font-size: 20px; font-weight: 700; color: #fbbf24; margin-bottom: 6px; }
+  .subtitle { color: #64748b; font-size: 13px; margin-bottom: 28px; }
+  label { display: block; font-size: 13px; color: #94a3b8; margin-bottom: 6px; font-weight: 500; }
+  input[type=text], input[type=password], textarea, select { width: 100%; background: #0d1224; border: 1px solid #252b45; border-radius: 8px; color: #e2e8f0; font-size: 14px; padding: 10px 14px; outline: none; transition: border-color .2s; }
+  input:focus, textarea:focus, select:focus { border-color: #fbbf24; }
+  textarea { resize: vertical; min-height: 80px; }
+  .field { margin-bottom: 20px; }
+  .toggle-row { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+  .toggle { position: relative; width: 44px; height: 24px; cursor: pointer; }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .slider-t { position: absolute; inset: 0; background: #252b45; border-radius: 24px; transition: .2s; }
+  .slider-t:before { content: ''; position: absolute; width: 18px; height: 18px; left: 3px; bottom: 3px; background: #64748b; border-radius: 50%; transition: .2s; }
+  input:checked + .slider-t { background: #16a34a; }
+  input:checked + .slider-t:before { transform: translateX(20px); background: #fff; }
+  .toggle-label { font-size: 14px; color: #e2e8f0; }
+  .btn { width: 100%; padding: 12px; background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #0a0e1a; border: none; border-radius: 8px; font-size: 15px; font-weight: 700; cursor: pointer; transition: opacity .2s; margin-top: 4px; }
+  .btn:hover { opacity: .9; }
+  .status { margin-top: 16px; padding: 12px; border-radius: 8px; font-size: 13px; text-align: center; display: none; }
+  .status.ok { background: #052e16; color: #4ade80; border: 1px solid #166534; }
+  .status.err { background: #450a0a; color: #fca5a5; border: 1px solid #7f1d1d; }
+  .divider { border: none; border-top: 1px solid #1e2440; margin: 24px 0; }
+  .mode-hint { font-size: 12px; color: #475569; margin-top: 4px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>🎯 Ticker Admin</h1>
+  <p class="subtitle">Manage the live wins ticker on Cryptora</p>
+  <div id="loginSection">
+    <div class="field"><label>Admin Email</label><input type="text" id="loginEmail" placeholder="gaminator2013@gmail.com"></div>
+    <div class="field"><label>Password</label><input type="password" id="loginPassword" placeholder="••••••••"></div>
+    <button class="btn" onclick="doLogin()">Login</button>
+    <div class="status" id="loginStatus"></div>
+  </div>
+  <div id="mainSection" style="display:none">
+    <div class="toggle-row">
+      <label class="toggle"><input type="checkbox" id="enabled"><span class="slider-t"></span></label>
+      <span class="toggle-label">Ticker enabled</span>
+    </div>
+    <div class="field">
+      <label>Mode</label>
+      <select id="mode" onchange="onModeChange()">
+        <option value="wins">🏆 Live Wins (auto)</option>
+        <option value="announcement">📢 Announcement (custom text)</option>
+      </select>
+      <p class="mode-hint" id="modeHint">Shows real or demo wins scrolling automatically.</p>
+    </div>
+    <div class="field" id="announcementField" style="display:none">
+      <label>Announcement Text (English)</label>
+      <textarea id="announcement" placeholder="🎉 Special bonus: deposit 100 USDT and get 50% bonus! Limited time offer."></textarea>
+    </div>
+    <button class="btn" onclick="doSave()">Save Changes</button>
+    <div class="status" id="saveStatus"></div>
+    <hr class="divider">
+    <p style="font-size:12px;color:#475569;text-align:center">Logged in as admin &nbsp;·&nbsp; <a href="#" onclick="doLogout()" style="color:#fbbf24">Logout</a></p>
+  </div>
+</div>
+<script>
+let token = localStorage.getItem('cr_admin_token') || '';
+function showStatus(id, msg, ok) {
+  const el = document.getElementById(id);
+  el.textContent = msg; el.className = 'status ' + (ok ? 'ok' : 'err'); el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 4000);
+}
+async function doLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const pw = document.getElementById('loginPassword').value;
+  if (!email || !pw) return showStatus('loginStatus', 'Fill in all fields', false);
+  try {
+    const r = await fetch('/api/auth/login', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({email, password: pw}) });
+    const data = await r.json();
+    if (!r.ok || !data.token) return showStatus('loginStatus', data.error || 'Login failed', false);
+    if (data.user?.role !== 'admin') return showStatus('loginStatus', 'Admin access required', false);
+    token = data.token; localStorage.setItem('cr_admin_token', token);
+    showMain(); loadSettings();
+  } catch { showStatus('loginStatus', 'Network error', false); }
+}
+async function loadSettings() {
+  try {
+    const r = await fetch('/api/ticker/admin', { headers: {'Authorization': 'Bearer ' + token} });
+    if (r.status === 401 || r.status === 403) { doLogout(); return; }
+    const s = await r.json();
+    document.getElementById('enabled').checked = s.enabled;
+    document.getElementById('mode').value = s.mode;
+    document.getElementById('announcement').value = s.announcement || '';
+    onModeChange();
+  } catch {}
+}
+async function doSave() {
+  const body = { enabled: document.getElementById('enabled').checked, mode: document.getElementById('mode').value, announcement: document.getElementById('announcement').value.trim() };
+  try {
+    const r = await fetch('/api/ticker/admin', { method: 'PUT', headers: {'Content-Type':'application/json','Authorization':'Bearer '+token}, body: JSON.stringify(body) });
+    const data = await r.json();
+    if (!r.ok) return showStatus('saveStatus', data.error || 'Save failed', false);
+    showStatus('saveStatus', '✅ Saved! Ticker updates within 30 seconds.', true);
+  } catch { showStatus('saveStatus', 'Network error', false); }
+}
+function onModeChange() {
+  const isAnnounce = document.getElementById('mode').value === 'announcement';
+  document.getElementById('announcementField').style.display = isAnnounce ? 'block' : 'none';
+  document.getElementById('modeHint').textContent = isAnnounce ? 'Your custom text scrolls instead of wins.' : 'Shows real or demo wins scrolling automatically.';
+}
+function showMain() { document.getElementById('loginSection').style.display = 'none'; document.getElementById('mainSection').style.display = 'block'; }
+function doLogout() { token = ''; localStorage.removeItem('cr_admin_token'); document.getElementById('loginSection').style.display = 'block'; document.getElementById('mainSection').style.display = 'none'; }
+if (token) { showMain(); loadSettings(); }
+</script>
+</body>
+</html>
