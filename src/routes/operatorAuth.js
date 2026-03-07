@@ -5,7 +5,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
-const { queryOne, queryAll, query } = require('../pgdb');
+const { queryOne, queryAll, query, transaction } = require('../pgdb');
 const { insert: chInsert } = require('../chdb');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'casino-secret-2026';
@@ -231,12 +231,22 @@ router.post('/chat', operatorAuth, async (req, res) => {
 // ════════════════════════════════════════════
 
 
+// Super admin check — env-based, no DB round-trip
+function isSuperAdmin(adminId) {
+  const ids = (process.env.SUPER_ADMIN_ID || 'd5f15957-060d-49ec-afdf-e53131ee193b').split(',').map(s => s.trim());
+  return Promise.resolve(ids.includes(adminId));
+}
+
 // GET /api/operator/admin/stats
 router.get('/admin/stats', adminAuth, async (req, res) => {
   try {
-    const row = await require('../pgdb').queryOne(
-      'SELECT COUNT(*) as players FROM operator_players WHERE deleted_at IS NULL'
-    );
+    const su = await isSuperAdmin(req.adminId);
+    const row = su
+      ? await queryOne('SELECT COUNT(*) as players FROM operator_players WHERE deleted_at IS NULL')
+      : await queryOne(
+          'SELECT COUNT(*) as players FROM operator_players op JOIN operators o ON o.id=op.operator_id WHERE op.deleted_at IS NULL AND o.owner_admin_id=$1',
+          [req.adminId]
+        );
     res.json({ players: parseInt(row.players) });
   } catch(e) { res.status(500).json({ error: 'Server error' }); }
 });
@@ -244,11 +254,15 @@ router.get('/admin/stats', adminAuth, async (req, res) => {
 // GET /api/operator/admin/transactions
 router.get('/admin/transactions', adminAuth, async (req, res) => {
   try {
-    const txs = await require('../pgdb').queryAll(
+    const su = await isSuperAdmin(req.adminId);
+    const whereClause = su ? '' : 'WHERE o.owner_admin_id=$1';
+    const params = su ? [] : [req.adminId];
+    const txs = await queryAll(
       `SELECT ot.*, o.username as operator_username
        FROM operator_transactions ot
        LEFT JOIN operators o ON o.id = ot.operator_id
-       ORDER BY ot.created_at DESC LIMIT 100`
+       ${whereClause}
+       ORDER BY ot.created_at DESC LIMIT 100`, params
     );
     res.json(txs.map(t => ({ ...t, amount: parseFloat(t.amount) })));
   } catch(e) { res.status(500).json({ error: 'Server error' }); }
@@ -261,6 +275,9 @@ router.get('/admin/accounting', adminAuth, async (req, res) => {
     const { from, to } = req.query;
     const fromDate = from ? from : '2000-01-01';
     const toDate   = to   ? to   : '2099-12-31';
+    const su = await isSuperAdmin(req.adminId);
+    const ownerWhere = su ? '' : 'AND o.owner_admin_id=$3';
+    const params = su ? [fromDate, toDate] : [fromDate, toDate, req.adminId];
 
     const rows = await require('../pgdb').queryAll(
       `SELECT
@@ -276,9 +293,10 @@ router.get('/admin/accounting', adminAuth, async (req, res) => {
          ON ot.operator_id = o.id
          AND ot.created_at >= $1::timestamptz
          AND ot.created_at <  ($2::date + interval '1 day')::timestamptz
+       WHERE 1=1 ${ownerWhere}
        GROUP BY o.id, o.username, o.currency, o.balance
        ORDER BY o.username`,
-      [fromDate, toDate]
+      params
     );
     res.json(rows.map(r => ({
       ...r,
@@ -297,10 +315,13 @@ router.get('/admin/accounting', adminAuth, async (req, res) => {
 // GET /api/operator/admin/list
 router.get('/admin/list', adminAuth, async (req, res) => {
   try {
+    const su = await isSuperAdmin(req.adminId);
+    const whereClause = su ? '' : 'WHERE owner_admin_id=$1';
+    const params = su ? [] : [req.adminId];
     const ops = await queryAll(
       `SELECT id, email, username, currency, status, balance, created_at, approved_at, notes,
               (SELECT COUNT(*) FROM operator_messages WHERE operator_id=operators.id AND sender='operator' AND read_at IS NULL) as unread
-       FROM operators ORDER BY created_at DESC`
+       FROM operators ${whereClause} ORDER BY created_at DESC`, params
     );
     res.json(ops.map(o => ({ ...o, balance: parseFloat(o.balance || 0), unread: parseInt(o.unread) })));
   } catch(e) { res.status(500).json({ error: 'Server error' }); }
@@ -440,7 +461,7 @@ router.post('/players', operatorAuth, async (req, res) => {
   try {
     const { username, password, currency } = req.body;
     if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
-    if (password.length < 6) return res.status(400).json({ error: 'Password min 6 characters' });
+    if (password.length < 8) return res.status(400).json({ error: 'Password min 8 characters' });
     const op = await queryOne('SELECT currency FROM operators WHERE id=$1', [req.operatorId]);
     const cur = currency || op.currency || 'USD';
     const hash = await bcrypt.hash(password, 10);
@@ -459,22 +480,43 @@ router.post('/players/:id/deposit', operatorAuth, async (req, res) => {
   try {
     const { amount, note } = req.body;
     const amt = parseFloat(amount);
-    if (!amt || amt <= 0) return res.status(400).json({ error: 'Invalid amount' });
-    const player = await queryOne('SELECT * FROM operator_players WHERE id=$1 AND operator_id=$2', [req.params.id, req.operatorId]);
-    if (!player) return res.status(404).json({ error: 'Player not found' });
-    const op = await queryOne('SELECT balance FROM operators WHERE id=$1', [req.operatorId]);
-    if (parseFloat(op.balance) < amt) return res.status(400).json({ error: 'Insufficient operator balance' });
-    // Deduct from operator, credit player
-    await query('UPDATE operators SET balance = balance - $1 WHERE id=$2', [amt, req.operatorId]);
-    await query('UPDATE operator_players SET balance = balance + $1 WHERE id=$2', [amt, req.params.id]);
-    await query(
-      `INSERT INTO operator_transactions (operator_id, player_id, type, amount, note) VALUES ($1,$2,'player_deposit',$3,$4)`,
-      [req.operatorId, req.params.id, amt, note || `Deposit to ${player.username}`]
+    if (!amt || amt <= 0 || isNaN(amt)) return res.status(400).json({ error: 'Invalid amount' });
+
+    const player = await queryOne(
+      'SELECT * FROM operator_players WHERE id=$1 AND operator_id=$2 AND deleted_at IS NULL',
+      [req.params.id, req.operatorId]
     );
+    if (!player) return res.status(404).json({ error: 'Player not found' });
+
+    let newPlayerBalance;
+    await transaction(async (client) => {
+      // Atomic operator balance deduction with guard
+      const opResult = await client.query(
+        'UPDATE operators SET balance = balance - $1 WHERE id=$2 AND balance >= $1 RETURNING balance',
+        [amt, req.operatorId]
+      );
+      if (!opResult.rowCount) throw new Error('Insufficient operator balance');
+
+      // Credit player atomically
+      const plResult = await client.query(
+        'UPDATE operator_players SET balance = balance + $1 WHERE id=$2 RETURNING balance',
+        [amt, req.params.id]
+      );
+      newPlayerBalance = parseFloat(plResult.rows[0].balance);
+
+      await client.query(
+        `INSERT INTO operator_transactions (operator_id, player_id, type, amount, note) VALUES ($1,$2,'player_deposit',$3,$4)`,
+        [req.operatorId, req.params.id, amt, note || `Deposit to ${player.username}`]
+      );
+    });
+
     chMirrorOpTx({ operator_id: req.operatorId, operator_username: req.username||'', player_id: req.params.id, player_username: player.username, type: 'player_deposit', amount: amt, note: note || '' });
-    const updated = await queryOne('SELECT balance FROM operator_players WHERE id=$1', [req.params.id]);
-    res.json({ ok: true, playerBalance: parseFloat(updated.balance) });
-  } catch(e) { console.error('[deposit]', e.message); res.status(500).json({ error: 'Server error', detail: e.message }); }
+    res.json({ ok: true, playerBalance: newPlayerBalance });
+  } catch(e) {
+    console.error('[deposit]', e.message);
+    if (e.message === 'Insufficient operator balance') return res.status(400).json({ error: e.message });
+    res.status(500).json({ error: 'Server error', detail: e.message });
+  }
 });
 
 // POST /api/operator/players/:id/withdraw
@@ -482,21 +524,43 @@ router.post('/players/:id/withdraw', operatorAuth, async (req, res) => {
   try {
     const { amount, note } = req.body;
     const amt = parseFloat(amount);
-    if (!amt || amt <= 0) return res.status(400).json({ error: 'Invalid amount' });
-    const player = await queryOne('SELECT * FROM operator_players WHERE id=$1 AND operator_id=$2', [req.params.id, req.operatorId]);
-    if (!player) return res.status(404).json({ error: 'Player not found' });
-    if (parseFloat(player.balance) < amt) return res.status(400).json({ error: 'Insufficient player balance' });
-    if (player.in_game) return res.status(409).json({ error: 'Cannot withdraw while player is in-game', in_game: true });
-    await query('UPDATE operator_players SET balance = balance - $1 WHERE id=$2', [amt, req.params.id]);
-    await query('UPDATE operators SET balance = balance + $1 WHERE id=$2', [amt, req.operatorId]);
-    await query(
-      `INSERT INTO operator_transactions (operator_id, player_id, type, amount, note) VALUES ($1,$2,'player_withdraw',$3,$4)`,
-      [req.operatorId, req.params.id, amt, note || `Withdraw from ${player.username}`]
+    if (!amt || amt <= 0 || isNaN(amt)) return res.status(400).json({ error: 'Invalid amount' });
+
+    const player = await queryOne(
+      'SELECT * FROM operator_players WHERE id=$1 AND operator_id=$2 AND deleted_at IS NULL',
+      [req.params.id, req.operatorId]
     );
+    if (!player) return res.status(404).json({ error: 'Player not found' });
+    if (player.in_game) return res.status(409).json({ error: 'Cannot withdraw while player is in-game', in_game: true });
+
+    let newPlayerBalance;
+    await transaction(async (client) => {
+      // Atomic player balance deduction with guard
+      const plResult = await client.query(
+        'UPDATE operator_players SET balance = balance - $1 WHERE id=$2 AND balance >= $1 AND in_game = false RETURNING balance',
+        [amt, req.params.id]
+      );
+      if (!plResult.rowCount) throw new Error('Insufficient player balance or player is in-game');
+      newPlayerBalance = parseFloat(plResult.rows[0].balance);
+
+      // Credit operator
+      await client.query(
+        'UPDATE operators SET balance = balance + $1 WHERE id=$2',
+        [amt, req.operatorId]
+      );
+      await client.query(
+        `INSERT INTO operator_transactions (operator_id, player_id, type, amount, note) VALUES ($1,$2,'player_withdraw',$3,$4)`,
+        [req.operatorId, req.params.id, amt, note || `Withdraw from ${player.username}`]
+      );
+    });
+
     chMirrorOpTx({ operator_id: req.operatorId, operator_username: req.username||'', player_id: req.params.id, player_username: player.username, type: 'player_withdraw', amount: amt, note: note || '' });
-    const updated = await queryOne('SELECT balance FROM operator_players WHERE id=$1', [req.params.id]);
-    res.json({ ok: true, playerBalance: parseFloat(updated.balance) });
-  } catch(e) { res.status(500).json({ error: 'Server error' }); }
+    res.json({ ok: true, playerBalance: newPlayerBalance });
+  } catch(e) {
+    console.error('[withdraw]', e.message);
+    if (e.message.includes('Insufficient') || e.message.includes('in-game')) return res.status(400).json({ error: e.message });
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
 // ══════════════════════════════════════════
@@ -608,8 +672,8 @@ router.post('/admin/create', adminAuth, async (req, res) => {
     const { email, username, password, currency, initialBalance, notes } = req.body;
     if (!email || !username || !password || !currency)
       return res.status(400).json({ error: 'email, username, password, currency are required' });
-    if (password.length < 6)
-      return res.status(400).json({ error: 'Password min 6 characters' });
+    if (password.length < 8)
+      return res.status(400).json({ error: 'Password min 8 characters' });
 
     const exists = await queryOne(
       'SELECT id FROM operators WHERE email=$1 OR username=$2',
@@ -621,8 +685,8 @@ router.post('/admin/create', adminAuth, async (req, res) => {
     const balance = parseFloat(initialBalance) > 0 ? parseFloat(initialBalance) : 0;
 
     const op = await queryOne(
-      `INSERT INTO operators (email, username, password_hash, currency, status, balance, notes, approved_at, approved_by, email_verified_at)
-       VALUES ($1, $2, $3, $4, 'approved', $5, $6, NOW(), $7, NOW())
+      `INSERT INTO operators (email, username, password_hash, currency, status, balance, notes, approved_at, approved_by, email_verified_at, owner_admin_id)
+       VALUES ($1, $2, $3, $4, 'approved', $5, $6, NOW(), $7, NOW(), $7)
        RETURNING id, email, username, currency, balance, status, created_at`,
       [email.toLowerCase(), username, hash, currency, balance, notes || '', req.adminId]
     );
@@ -680,12 +744,33 @@ router.post('/launch-game', landPlayerAuth, async (req, res) => {
       const p = new URLSearchParams({ gameName, operatorId, sessionId, userName: username, mode: 'external', currency: 'USD', device: 'desktop', closeUrl: 'https://cryptora.live/land' });
       launchUrl = base + '?' + p.toString();
 
-    } else if (providerName === 'NetGame' || providerName === 'Novomatic') {
-      const baseDefault = providerName === 'Novomatic'
-        ? 'https://gs2.grandx.pro/novomatic-admin/launcher.html'
-        : 'https://gs2.grandx.pro/netgame-admin/launcher.html';
-      const base = providerRow?.api_base_url || baseDefault;
-      const p = new URLSearchParams({ gameName, operatorId, sessionId, userName: username, mode: 'external', closeUrl: 'https://cryptora.live/land' });
+    } else if (providerName === "Play'n GO") {
+      const pngApiUrl = process.env.PRAGMATIC_API_URL || 'https://gs2.grandx.pro/euro-extern/dispatcher/egame/openGame/v2';
+      const pngGameId = game.provider_game_id || gameName;
+      const sigInput = `${privateKey}operatorId=${operatorId}&username=${username}&sessionId=${sessionId}&gameId=${pngGameId}`;
+      const accessPassword = md5hex(sigInput);
+      const p = new URLSearchParams({ accessPassword, operatorId, username, sessionId, gameId: pngGameId });
+      try {
+        const resp = await fetch(pngApiUrl + '?' + p.toString(), { method: 'POST' });
+        const text = await resp.text();
+        const trimmed = text.trim();
+        if (trimmed.startsWith('http')) { launchUrl = trimmed; }
+        else { try { const j = JSON.parse(trimmed); launchUrl = j?.gameURL || j?.url || j?.game?.url || j?.gameUrl || null; } catch{} }
+      } catch(fe) { console.error('[land playngo launch]', fe.message); }
+
+    } else if (['NetGame', 'Novomatic'].includes(providerName)) {
+      const baseMap = {
+        Novomatic: 'https://gs2.grandx.pro/novomatic-admin/launcher.html',
+        NetGame:   'https://gs2.grandx.pro/netgame-admin/launcher.html',
+      };
+      const base = providerRow?.api_base_url || baseMap[providerName];
+      const p = new URLSearchParams({ gameName, operatorId, sessionId, userName: username, mode: 'external', currency: 'USD', closeUrl: 'https://cryptora.live/land' });
+      launchUrl = base + '?' + p.toString();
+
+    } else if (providerName === 'Amatic') {
+      const base = providerRow?.api_base_url || 'https://gs2.grandx.pro/amatic-admin/launcher/opengame.html';
+      const amaticOpId = operatorId;
+      const p = new URLSearchParams({ gameName, operatorId: amaticOpId, sessionId, playerName: username, mode: 'external', currency: 'EUR', closeUrl: 'https://cryptora.live/land' });
       launchUrl = base + '?' + p.toString();
 
     } else {

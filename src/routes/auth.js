@@ -51,7 +51,7 @@ router.post('/login', async (req, res) => {
 router.post('/register', async (req, res) => {
   const { email, password, name } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
-  if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
 
   const existing = await queryOne('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
   if (existing) return res.status(409).json({ error: 'Email already registered' });
@@ -491,7 +491,7 @@ router.post('/admin/create-admin', authMiddleware, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
   const { email, password, username } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'email and password required' });
-  if (password.length < 6) return res.status(400).json({ error: 'Password min 6 characters' });
+  if (password.length < 8) return res.status(400).json({ error: 'Password min 8 characters' });
   try {
     const exists = await queryOne('SELECT id FROM users WHERE email=$1', [email.toLowerCase()]);
     if (exists) return res.status(409).json({ error: 'Email already exists' });

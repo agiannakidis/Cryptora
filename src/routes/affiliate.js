@@ -3,6 +3,23 @@ const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const { queryOne, queryAll, query } = require('../pgdb');
 const { authMiddleware } = require('../middleware/auth');
+let sendVerificationCode;
+try { ({ sendVerificationCode } = require('../email')); } catch(e) { sendVerificationCode = async (email, code) => { console.log('[EMAIL-FALLBACK] code for', email, ':', code); }; }
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const JWT_SECRET = process.env.JWT_SECRET || '3135b75346a97155548cc44066544d15ad492e688ed87a173dee33916e626087';
+
+function affAuth(req, res, next) {
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+  if (!token) return res.status(401).json({ error: 'No token' });
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    if (payload.type !== 'affiliate') return res.status(403).json({ error: 'Not an affiliate token' });
+    req.affAccount = payload;
+    next();
+  } catch(e) { return res.status(401).json({ error: 'Invalid token' }); }
+}
 
 function adminAuth(req, res, next) {
   authMiddleware(req, res, () => {
@@ -20,9 +37,9 @@ function genRefCode(name) {
 // ── Affiliate self-service ────────────────────────────────────────────────────
 
 // GET /api/affiliate/me
-router.get('/me', authMiddleware, async (req, res) => {
+router.get('/me', affAuth, async (req, res) => {
   try {
-    const aff = await queryOne('SELECT * FROM affiliates WHERE user_id = $1', [req.user.id]);
+    const aff = await queryOne('SELECT * FROM affiliates WHERE account_id = $1', [req.affAccount.id]);
     if (!aff) return res.status(404).json({ error: 'Not an affiliate. Apply first.' });
 
     const refRow = await queryOne(
@@ -56,18 +73,19 @@ router.get('/me', authMiddleware, async (req, res) => {
 });
 
 // POST /api/affiliate/apply
-router.post('/apply', authMiddleware, async (req, res) => {
+router.post('/apply', affAuth, async (req, res) => {
   try {
-    const existing = await queryOne('SELECT id, ref_code FROM affiliates WHERE user_id = $1', [req.user.id]);
+    const existing = await queryOne('SELECT id, ref_code FROM affiliates WHERE account_id = $1', [req.affAccount.id]);
     if (existing) return res.status(409).json({ error: 'Already an affiliate', ref_code: existing.ref_code });
 
     const { postback_url } = req.body;
-    const ref_code = genRefCode(req.user.name || req.user.email);
+    const acc = await queryOne('SELECT name, email FROM affiliate_accounts WHERE id=$1', [req.affAccount.id]);
+    const ref_code = genRefCode(acc?.name || acc?.email || 'AFF');
     const id = uuidv4();
 
     await query(
-      'INSERT INTO affiliates (id, user_id, ref_code, postback_url) VALUES ($1, $2, $3, $4)',
-      [id, req.user.id, ref_code, postback_url || null]
+      'INSERT INTO affiliates (id, account_id, ref_code, postback_url) VALUES ($1, $2, $3, $4)',
+      [id, req.affAccount.id, ref_code, postback_url || null]
     );
 
     res.json({ ok: true, ref_code, ref_link: `https://cryptora.live/?ref=${ref_code}` });
@@ -75,9 +93,9 @@ router.post('/apply', authMiddleware, async (req, res) => {
 });
 
 // GET /api/affiliate/referrals
-router.get('/referrals', authMiddleware, async (req, res) => {
+router.get('/referrals', affAuth, async (req, res) => {
   try {
-    const aff = await queryOne('SELECT id FROM affiliates WHERE user_id = $1', [req.user.id]);
+    const aff = await queryOne('SELECT id FROM affiliates WHERE account_id = $1', [req.affAccount.id]);
     if (!aff) return res.status(403).json({ error: 'Not an affiliate' });
 
     const { limit = 50, offset = 0 } = req.query;
@@ -118,31 +136,34 @@ router.get('/referrals', authMiddleware, async (req, res) => {
   } catch (e) { console.error('[affiliate/referrals]', e.message); res.status(500).json({ error: 'Server error' }); }
 });
 
-// GET /api/affiliate/earnings
-router.get('/earnings', authMiddleware, async (req, res) => {
+// GET /api/affiliate/earnings?from=&to=&limit=
+router.get('/earnings', affAuth, async (req, res) => {
   try {
-    const aff = await queryOne('SELECT id FROM affiliates WHERE user_id = $1', [req.user.id]);
+    const aff = await queryOne('SELECT id FROM affiliates WHERE account_id = $1', [req.affAccount.id]);
     if (!aff) return res.status(403).json({ error: 'Not an affiliate' });
 
+    const { from = '2020-01-01', to, limit = 500 } = req.query;
+    const toDate = to || new Date().toISOString().slice(0, 10);
+
     const rows = await queryAll(`
-      SELECT e.*, u.email as referred_email
+      SELECT e.*, u.name as user_name, u.email as referred_email
       FROM affiliate_earnings e
       LEFT JOIN users u ON u.id = e.referred_user_id
       WHERE e.affiliate_id = $1
+        AND e.created_date >= $2::date
+        AND e.created_date < ($3::date + INTERVAL '1 day')
       ORDER BY e.created_date DESC
-      LIMIT 100
-    `, [aff.id]);
+      LIMIT $4
+    `, [aff.id, from, toDate, parseInt(limit)]);
 
-    res.json({
-      earnings: rows.map(r => ({ ...r, amount: parseFloat(r.amount) }))
-    });
+    res.json(rows.map(r => ({ ...r, amount: parseFloat(r.amount) })));
   } catch (e) { console.error('[affiliate/earnings]', e.message); res.status(500).json({ error: 'Server error' }); }
 });
 
 // GET /api/affiliate/stats?from=&to=  — NGR stats for affiliate dashboard
-router.get('/stats', authMiddleware, async (req, res) => {
+router.get('/stats', affAuth, async (req, res) => {
   try {
-    const aff = await queryOne('SELECT * FROM affiliates WHERE user_id = $1', [req.user.id]);
+    const aff = await queryOne('SELECT * FROM affiliates WHERE account_id = $1', [req.affAccount.id]);
     if (!aff) return res.status(403).json({ error: 'Not an affiliate' });
 
     const { from, to } = req.query;
@@ -183,36 +204,7 @@ router.get('/stats', authMiddleware, async (req, res) => {
 
 // ── Admin ─────────────────────────────────────────────────────────────────────
 
-// GET /api/affiliate/admin/list
-router.get('/admin/list', adminAuth, async (req, res) => {
-  try {
-    const rows = await queryAll(`
-      SELECT
-        a.*,
-        u.email,
-        u.name as user_name,
-        (SELECT COUNT(*) FROM affiliate_referrals WHERE affiliate_id = a.id) as referral_count,
-        (SELECT COUNT(*) FROM affiliate_referrals WHERE affiliate_id = a.id AND status != 'registered') as depositor_count,
-        (a.total_earned - a.total_paid) as balance
-      FROM affiliates a
-      LEFT JOIN users u ON u.id = a.user_id
-      ORDER BY a.total_earned DESC
-    `);
-    res.json({
-      affiliates: rows.map(r => ({
-        ...r,
-        total_earned: parseFloat(r.total_earned),
-        total_paid: parseFloat(r.total_paid),
-        balance: parseFloat(r.balance),
-        revshare_percent: parseFloat(r.revshare_percent),
-        cpa_amount: parseFloat(r.cpa_amount),
-        referral_count: parseInt(r.referral_count),
-        depositor_count: parseInt(r.depositor_count),
-      }))
-    });
-  } catch (e) { console.error('[affiliate/admin/list]', e.message); res.status(500).json({ error: 'Server error' }); }
-});
-
+// (old /admin/list removed)
 // PUT /api/affiliate/admin/:id
 router.put('/admin/:id', adminAuth, async (req, res) => {
   try {
@@ -386,9 +378,9 @@ router.get('/track', async (req, res) => {
 });
 
 // GET /api/affiliate/clicks — my click stats
-router.get('/clicks', authMiddleware, async (req, res) => {
+router.get('/clicks', affAuth, async (req, res) => {
   try {
-    const aff = await queryOne('SELECT id FROM affiliates WHERE user_id = $1', [req.user.id]);
+    const aff = await queryOne('SELECT id FROM affiliates WHERE account_id = $1', [req.affAccount.id]);
     if (!aff) return res.status(403).json({ error: 'Not an affiliate' });
 
     const { from, to } = req.query;
@@ -455,6 +447,254 @@ async function trackRegistration(userId, userEmail, refCode) {
     console.log('[affiliate] tracked registration:', userEmail, '→', refCode);
   } catch(e) { console.error('[affiliate/trackRegistration]', e.message); }
 }
+
+
+
+// ── Commission endpoints ──────────────────────────────────────────────────────
+
+// GET /api/affiliate/commissions — affiliate sees own commissions
+router.get('/commissions', affAuth, async (req, res) => {
+  try {
+    const aff = await queryOne('SELECT id FROM affiliates WHERE account_id = $1', [req.affAccount.id]);
+    if (!aff) return res.status(403).json({ error: 'Not an affiliate' });
+
+    const rows = await queryAll(`
+      SELECT id, period_start, period_end, total_ggr, revshare_percent, amount, status, paid_at, created_at
+      FROM affiliate_commissions WHERE affiliate_id = $1
+      ORDER BY period_start DESC
+    `, [aff.id]);
+
+    res.json(rows.map(r => ({
+      ...r,
+      total_ggr: parseFloat(r.total_ggr),
+      revshare_percent: parseFloat(r.revshare_percent),
+      amount: parseFloat(r.amount),
+    })));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+
+// GET /api/affiliate/admin/list — all affiliates with user info
+router.get('/admin/list', adminAuth, async (req, res) => {
+  try {
+    const { status } = req.query;
+    const rows = await queryAll(`
+      SELECT a.*, u.name as affiliate_name, u.email as affiliate_email,
+        (SELECT COUNT(*) FROM affiliate_referrals ar WHERE ar.affiliate_id = a.id) as referral_count,
+        (SELECT COUNT(*) FROM affiliate_referrals ar WHERE ar.affiliate_id = a.id AND ar.status != 'registered') as depositor_count
+      FROM affiliates a
+      JOIN users u ON u.id = a.user_id
+      ${status ? 'WHERE a.status = $1' : ''}
+      ORDER BY a.created_date DESC
+    `, status ? [status] : []);
+
+    res.json(rows.map(r => ({
+      ...r,
+      revshare_percent: parseFloat(r.revshare_percent),
+      cpa_amount: parseFloat(r.cpa_amount),
+      total_earned: parseFloat(r.total_earned),
+      total_paid: parseFloat(r.total_paid),
+      referral_count: parseInt(r.referral_count),
+      depositor_count: parseInt(r.depositor_count),
+    })));
+  } catch(e) { console.error('[affiliate/admin/list]', e.message); res.status(500).json({ error: e.message }); }
+});
+
+// PATCH /api/affiliate/admin/affiliates/:id — update revshare % and status
+router.patch('/admin/affiliates/:id', adminAuth, async (req, res) => {
+  try {
+    const { revshare_percent, status, notes } = req.body;
+    const aff = await queryOne('SELECT id FROM affiliates WHERE id = $1', [req.params.id]);
+    if (!aff) return res.status(404).json({ error: 'Affiliate not found' });
+
+    const updates = [];
+    const vals = [];
+    let idx = 1;
+
+    if (revshare_percent !== undefined) { updates.push('revshare_percent=$' + idx++); vals.push(parseFloat(revshare_percent)); }
+    if (status !== undefined) { updates.push('status=$' + idx++); vals.push(status); }
+    if (notes !== undefined) { updates.push('notes=$' + idx++); vals.push(notes); }
+
+    if (!updates.length) return res.status(400).json({ error: 'Nothing to update' });
+    vals.push(req.params.id);
+
+    await query('UPDATE affiliates SET ' + updates.join(', ') + ' WHERE id=$' + idx, vals);
+    res.json({ ok: true });
+  } catch(e) { console.error('[affiliate/admin/affiliates]', e.message); res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/affiliate/admin/commissions — admin view all
+router.get('/admin/commissions', adminAuth, async (req, res) => {
+  try {
+    const { status } = req.query;
+    const rows = await queryAll(`
+      SELECT ac.*, u.email as affiliate_email, u.name as affiliate_name, a.ref_code
+      FROM affiliate_commissions ac
+      JOIN affiliates a ON a.id = ac.affiliate_id
+      JOIN users u ON u.id = a.user_id
+      ${status ? "WHERE ac.status = $1" : "WHERE 1=1"}
+      ORDER BY ac.period_start DESC, ac.created_at DESC
+    `, status ? [status] : []);
+
+    res.json(rows.map(r => ({
+      ...r,
+      total_ggr: parseFloat(r.total_ggr),
+      revshare_percent: parseFloat(r.revshare_percent),
+      amount: parseFloat(r.amount),
+    })));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/affiliate/admin/commissions/run — trigger cron manually
+router.post('/admin/commissions/run', adminAuth, async (req, res) => {
+  try {
+    const { period_start, period_end } = req.body;
+    const { runCommissionCron } = require('../cron/affiliateCommissions');
+    const result = await runCommissionCron(period_start, period_end);
+    res.json({ ok: true, ...result });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// PATCH /api/affiliate/admin/commissions/:id — approve/pay/reject
+router.patch('/admin/commissions/:id', adminAuth, async (req, res) => {
+  try {
+    const { status, notes } = req.body;
+    const allowed = ['approved', 'paid', 'rejected'];
+    if (!allowed.includes(status)) return res.status(400).json({ error: 'Invalid status' });
+
+    const comm = await queryOne('SELECT * FROM affiliate_commissions WHERE id = $1', [req.params.id]);
+    if (!comm) return res.status(404).json({ error: 'Not found' });
+
+    const paid_at = status === 'paid' ? new Date().toISOString() : null;
+    const paid_by = status === 'paid' ? req.user.id : null;
+
+    await query(`
+      UPDATE affiliate_commissions SET status=$1, paid_at=$2, paid_by=$3, notes=COALESCE($4, notes)
+      WHERE id=$5
+    `, [status, paid_at, paid_by, notes || null, req.params.id]);
+
+    // If paid → update affiliate total_paid
+    if (status === 'paid') {
+      await query('UPDATE affiliates SET total_paid = total_paid + $1 WHERE id = $2',
+        [parseFloat(comm.amount), comm.affiliate_id]);
+    }
+
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+
+// POST /api/affiliate/auth/register
+router.post('/auth/register', async (req, res) => {
+  try {
+    const { email, password, name } = req.body;
+    if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+    if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+
+    const existing = await queryOne('SELECT id, email_confirmed FROM affiliate_accounts WHERE email=$1', [email.toLowerCase()]);
+    if (existing && existing.email_confirmed) return res.status(409).json({ error: 'Email already registered' });
+
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    const hash = await bcrypt.hash(password, 10);
+
+    if (existing) {
+      // Resend code for unconfirmed account
+      await query(
+        'UPDATE affiliate_accounts SET password_hash=$1, name=$2, confirm_code=$3, confirm_code_expires=$4 WHERE id=$5',
+        [hash, name || existing.name, code, expires, existing.id]
+      );
+    } else {
+      await query(
+        'INSERT INTO affiliate_accounts (email, password_hash, name, email_confirmed, confirm_code, confirm_code_expires) VALUES ($1,$2,$3,false,$4,$5)',
+        [email.toLowerCase(), hash, name || email.split('@')[0], code, expires]
+      );
+    }
+
+    await sendVerificationCode(email.toLowerCase(), code);
+    res.json({ ok: true, pending: true, email: email.toLowerCase() });
+  } catch(e) { console.error('[aff/register]', e.message); res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/affiliate/auth/confirm
+router.post('/auth/confirm', async (req, res) => {
+  try {
+    const { email, code } = req.body;
+    if (!email || !code) return res.status(400).json({ error: 'Email and code required' });
+
+    const acc = await queryOne(
+      'SELECT * FROM affiliate_accounts WHERE email=$1',
+      [email.toLowerCase()]
+    );
+    if (!acc) return res.status(404).json({ error: 'Account not found' });
+    if (acc.email_confirmed) return res.status(409).json({ error: 'Already confirmed' });
+    if (!acc.confirm_code || acc.confirm_code !== String(code).trim())
+      return res.status(400).json({ error: 'Invalid code' });
+    if (new Date(acc.confirm_code_expires) < new Date())
+      return res.status(400).json({ error: 'Code expired. Please register again.' });
+
+    // Confirm + create affiliate record
+    await query(
+      'UPDATE affiliate_accounts SET email_confirmed=true, confirm_code=NULL, confirm_code_expires=NULL WHERE id=$1',
+      [acc.id]
+    );
+
+    const ref_code = genRefCode(acc.name);
+    await query(
+      'INSERT INTO affiliates (id, account_id, ref_code) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING',
+      [uuidv4(), acc.id, ref_code]
+    );
+
+    const token = jwt.sign({ id: acc.id, email: acc.email, type: 'affiliate' }, JWT_SECRET, { expiresIn: '30d' });
+    res.json({ ok: true, token, account: { id: acc.id, email: acc.email, name: acc.name } });
+  } catch(e) { console.error('[aff/confirm]', e.message); res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/affiliate/auth/resend-code
+router.post('/auth/resend-code', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email required' });
+    const acc = await queryOne('SELECT * FROM affiliate_accounts WHERE email=$1', [email.toLowerCase()]);
+    if (!acc) return res.status(404).json({ error: 'Account not found' });
+    if (acc.email_confirmed) return res.status(409).json({ error: 'Already confirmed' });
+
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    await query('UPDATE affiliate_accounts SET confirm_code=$1, confirm_code_expires=$2 WHERE id=$3', [code, expires, acc.id]);
+    await sendVerificationCode(email.toLowerCase(), code);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/affiliate/auth/login
+router.post('/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+
+    const acc = await queryOne('SELECT * FROM affiliate_accounts WHERE email=$1', [email.toLowerCase()]);
+    if (!acc) return res.status(401).json({ error: 'Invalid credentials' });
+    if (acc.status === 'suspended') return res.status(403).json({ error: 'Account suspended' });
+    if (!acc.email_confirmed) return res.status(403).json({ error: 'Please confirm your email first', pending: true, email: acc.email });
+
+    const ok = await bcrypt.compare(password, acc.password_hash);
+    if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
+
+    const token = jwt.sign({ id: acc.id, email: acc.email, type: 'affiliate' }, JWT_SECRET, { expiresIn: '30d' });
+    res.json({ ok: true, token, account: { id: acc.id, email: acc.email, name: acc.name } });
+  } catch(e) { console.error('[aff/login]', e.message); res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/affiliate/auth/me
+router.get('/auth/me', affAuth, async (req, res) => {
+  try {
+    const acc = await queryOne('SELECT id, email, name, status, created_at FROM affiliate_accounts WHERE id=$1', [req.affAccount.id]);
+    if (!acc) return res.status(404).json({ error: 'Not found' });
+    const aff = await queryOne('SELECT * FROM affiliates WHERE account_id=$1', [acc.id]);
+    res.json({ ...acc, affiliate: aff || null });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
 
 
 module.exports = router;
