@@ -1,4 +1,32 @@
 require('dotenv').config();
+
+// ── Startup safety checks ─────────────────────────────────────────────────────
+(function validateEnv() {
+  const REQUIRED = ['JWT_SECRET', 'PG_PASSWORD'];
+  const WEAK_VALUES = ['change-this-secret-in-production', 'casino-secret-2026', 'secret'];
+  let ok = true;
+
+  for (const key of REQUIRED) {
+    if (!process.env[key]) {
+      console.error(`[STARTUP] CRITICAL: Missing required env var: ${key}`);
+      ok = false;
+    }
+  }
+
+  const secret = process.env.JWT_SECRET || '';
+  if (WEAK_VALUES.includes(secret) || secret.length < 32) {
+    console.error('[STARTUP] WARNING: JWT_SECRET is weak or default — rotate immediately!');
+  }
+
+  if (!process.env.PRAGMATIC_PRIVATE_KEY) {
+    console.warn('[STARTUP] WARNING: PRAGMATIC_PRIVATE_KEY not set — walletApi signature verification disabled');
+  }
+
+  if (!ok) {
+    console.error('[STARTUP] Aborting due to missing critical config');
+    process.exit(1);
+  }
+})();
 const http = require('http');
 const express = require('express');
 const cors = require('cors');
