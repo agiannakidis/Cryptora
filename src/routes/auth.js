@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const crypto = require('crypto');
 const { queryOne, queryAll, query } = require('../pgdb');
-const { authMiddleware, sanitizeUser, JWT_SECRET } = require('../middleware/auth');
+const { authMiddleware, sanitizeUser, JWT_SECRET, invalidateUserCache, blacklistToken } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -40,7 +40,7 @@ router.post('/login', async (req, res) => {
     });
   }
 
-  const rgCheck = checkSelfExclusion(user.id);
+  const rgCheck = await checkSelfExclusion(user.id);
   if (rgCheck.blocked) return res.status(403).json({ error: rgCheck.reason, selfExcluded: true });
 
   const token = signToken(user);
@@ -431,11 +431,24 @@ router.put('/me', authMiddleware, async (req, res) => {
     [...Object.values(updates), req.user.id]);
 
   const updated = await queryOne('SELECT * FROM users WHERE id = $1', [req.user.id]);
+  invalidateUserCache(req._token);
   res.json(sanitizeUser(updated));
 });
 
 // ── POST /logout ──────────────────────────────────────────────────────────────
-router.post('/logout', (req, res) => res.json({ ok: true }));
+router.post('/logout', authMiddleware, async (req, res) => {
+  try {
+    const token = req._token;
+    const decoded = require('jsonwebtoken').decode(token);
+    if (token && decoded?.exp) {
+      await blacklistToken(token, decoded.exp);
+      invalidateUserCache(token);
+    }
+    res.json({ ok: true });
+  } catch(e) {
+    res.json({ ok: true }); // Always succeed on logout
+  }
+});
 
 // ── Admin: delete user ────────────────────────────────────────────────────────
 router.delete('/admin/delete-user/:id', authMiddleware, async (req, res) => {
@@ -470,6 +483,45 @@ router.get('/debug/verify-code', async (req, res) => {
   );
   if (!user) return res.status(404).json({ error: 'User not found' });
   res.json(user);
+});
+
+
+// ── Admin: create new admin account ──────────────────────────────────────────
+router.post('/admin/create-admin', authMiddleware, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+  const { email, password, username } = req.body;
+  if (!email || !password) return res.status(400).json({ error: 'email and password required' });
+  if (password.length < 6) return res.status(400).json({ error: 'Password min 6 characters' });
+  try {
+    const exists = await queryOne('SELECT id FROM users WHERE email=$1', [email.toLowerCase()]);
+    if (exists) return res.status(409).json({ error: 'Email already exists' });
+    const bcrypt = require('bcryptjs');
+    const { v4: uuidv4 } = require('uuid');
+    const hash = await bcrypt.hash(password, 10);
+    const newAdmin = await queryOne(
+      `INSERT INTO users (id, email, name, password_hash, role, balance, email_verified, created_date)
+       VALUES ($1, $2, $3, $4, 'admin', 0, true, NOW())
+       RETURNING id, email, name, role`,
+      [uuidv4(), email.toLowerCase(), username || email.split('@')[0], hash]
+    );
+    res.json({ ok: true, admin: newAdmin });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+
+// ── Admin: list all admins ────────────────────────────────────────────────────
+router.get('/admin/list-admins', authMiddleware, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+  try {
+    const admins = await queryAll(
+      "SELECT id, email, name, role, created_date FROM users WHERE role='admin' ORDER BY created_date ASC"
+    );
+    res.json({ admins });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 module.exports = router;
