@@ -238,15 +238,30 @@ router.get('/:entity', optionalAuth, async (req, res) => {
 
 // ── POST /:entity ─────────────────────────────────────────────────────────────
 router.post('/:entity', authMiddleware, async (req, res) => {
-  const table = getTable(req.params.entity);
+  const entityName = req.params.entity;
+  const table = getTable(entityName);
   if (!table) return res.status(404).json({ error: 'Unknown entity' });
 
-  const data = { ...req.body };
-  if (!data.id) data.id = uuidv4();
-  if (!data.created_date) data.created_date = new Date().toISOString();
-  data.updated_date = new Date().toISOString();
+  // Only admins can POST to protected entities
+  if (ADMIN_WRITE_ENTITIES.includes(entityName) && req.user.role !== 'admin')
+    return res.status(403).json({ error: 'Admin only' });
 
-  // Serialize JSON fields for PG (jsonb accepts objects directly, but be safe)
+  const rawData = { ...req.body };
+  if (!rawData.id) rawData.id = uuidv4();
+  if (!rawData.created_date) rawData.created_date = new Date().toISOString();
+  rawData.updated_date = new Date().toISOString();
+
+  // Whitelist columns for POST as well
+  const allowedCols = ALLOWED_COLUMNS[table];
+  const data = {};
+  const ALWAYS_ALLOWED = ['id', 'created_date', 'updated_date'];
+  for (const [k, v] of Object.entries(rawData)) {
+    if (ALWAYS_ALLOWED.includes(k) || !allowedCols || allowedCols.has(k)) {
+      data[k] = v;
+    }
+  }
+
+  // Serialize JSON fields for PG
   if (data.messages && typeof data.messages === 'object')
     data.messages = JSON.stringify(data.messages);
   if (data.favorite_games && typeof data.favorite_games === 'object')
