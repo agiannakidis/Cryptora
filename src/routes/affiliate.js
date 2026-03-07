@@ -1,4 +1,5 @@
 const express = require('express');
+const { validateAmount } = require('../utils/validators');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const { queryOne, queryAll, query } = require('../pgdb');
@@ -229,23 +230,25 @@ router.put('/admin/:id', adminAuth, async (req, res) => {
 router.post('/admin/:id/payout', adminAuth, async (req, res) => {
   try {
     const { amount } = req.body;
-    if (!amount || parseFloat(amount) <= 0) return res.status(400).json({ error: 'Amount required' });
+    const amtCheck = validateAmount(amount, { min: 0.01, max: 1000000 });
+    if (!amtCheck.valid) return res.status(400).json({ error: amtCheck.error });
+    const validAmt = amtCheck.value;
     const aff = await queryOne('SELECT * FROM affiliates WHERE id = $1', [req.params.id]);
     if (!aff) return res.status(404).json({ error: 'Not found' });
 
     const balance = parseFloat(aff.total_earned) - parseFloat(aff.total_paid);
-    if (parseFloat(amount) > balance)
+    if (validAmt > balance)
       return res.status(400).json({ error: `Balance is only $${balance.toFixed(2)}` });
 
     await query('UPDATE affiliates SET total_paid = total_paid + $1 WHERE id = $2',
-      [parseFloat(amount), aff.id]);
+      [validAmt, aff.id]);
     await query(
       `INSERT INTO affiliate_earnings (id, affiliate_id, type, amount, description)
        VALUES ($1, $2, 'payout', $3, 'Payout by admin')`,
-      [uuidv4(), aff.id, -parseFloat(amount)]
+      [uuidv4(), aff.id, -validAmt]
     );
 
-    res.json({ ok: true, new_balance: balance - parseFloat(amount) });
+    res.json({ ok: true, new_balance: balance - validAmt });
   } catch (e) { console.error('[affiliate/admin/payout]', e.message); res.status(500).json({ error: 'Server error' }); }
 });
 
