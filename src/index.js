@@ -59,10 +59,20 @@ app.use('/api/crypto', require('./routes/crypto'));
 app.use('/api/affiliate', require('./routes/affiliate'));
 app.use('/api/promotions', require('./routes/promotions'));
 app.use('/api/rg', require('./routes/rg'));
+app.use('/api/games', require('./routes/games'));
 app.use('/api/banner', require('./routes/banner'));
 app.use('/api/jackpot', require('./routes/jackpot'));
 app.use('/api/ticker', require('./routes/ticker'));
+app.use('/api/analytics', require('./routes/analytics'));
+app.use('/api/chat', require('./routes/chat'));
+
 app.use('/api/operator', require('./routes/operatorAuth'));
+
+// Bonus expiry cron
+try {
+  const { scheduleBonusExpiry } = require('./cron/bonusExpiry');
+  scheduleBonusExpiry();
+} catch(e) { console.error('[bonus-expiry] failed to start:', e.message); }
 
 // Health check
 app.get('/api/health', (req, res) => res.json({ ok: true, time: new Date().toISOString() }));
@@ -72,8 +82,39 @@ const server = http.createServer(app);
 const { createChatServer } = require('./chat');
 createChatServer(server);
 
+// Global crash guards — log instead of dying silently  
+process.on('uncaughtException', (err) => {
+  console.error('[FATAL] uncaughtException:', err.stack || err.message);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[FATAL] unhandledRejection:', reason?.stack || String(reason));
+});
+
 server.listen(PORT, () => {
   console.log(`🎰 Casino backend running on port ${PORT}`);
+
+
+  // Affiliate commission cron — runs 1st of each month at 02:00
+  // FIX: use hourly check to avoid 32-bit int overflow (26-day timeout crashes Node)
+  (function scheduleAffiliateCommissions() {
+    let lastRanMonth = -1;
+    async function checkAndRun() {
+      const now = new Date();
+      if (now.getDate() === 1 && now.getHours() === 2 && now.getMonth() !== lastRanMonth) {
+        lastRanMonth = now.getMonth();
+        try {
+          const { runCommissionCron } = require('./cron/affiliateCommissions');
+          const r = await runCommissionCron();
+          console.log('[affiliate-cron] done:', r);
+        } catch (e) {
+          console.error('[affiliate-cron] error:', e.message);
+        }
+      }
+    }
+    // Check every hour — safe, no overflow
+    setInterval(checkAndRun, 60 * 60 * 1000);
+    console.log('[affiliate-cron] Scheduled — hourly check, runs on 1st of month at 02:00');
+  })();
 
   // Start deposit monitor (non-blocking)
   if (process.env.MASTER_MNEMONIC) {
