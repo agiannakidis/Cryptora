@@ -20,6 +20,31 @@ const ENTITY_MAP = {
 // CH entities
 const CH_ENTITIES = { Transaction: 'casino.transactions' };
 
+// Allowed columns per entity for PUT (whitelist approach — prevents mass assignment)
+const ALLOWED_COLUMNS = {
+  users: new Set([
+    'name','currency','preferred_currency','favorite_games',
+    // admin-only
+    'balance','bonus_balance','role','email_verified','vip_level','vip_points',
+    'total_wagered','wagering_required','wagering_progress','wagering_bonus_amount',
+    'bonus_expires_at','avatar_url','deposit_limit_daily','deposit_limit_weekly',
+    'deposit_limit_monthly','loss_limit_daily','loss_limit_weekly','loss_limit_monthly',
+    'wager_limit_daily','session_limit_minutes','self_excluded_until',
+    'self_excluded_permanent','is_active','notes','updated_date',
+  ]),
+  games: new Set([
+    'title','provider','category','thumbnail','is_active','is_featured',
+    'rtp','min_bet','max_bet','tags','description','updated_date',
+  ]),
+  promotions: new Set([
+    'title','description','image','bonus_type','bonus_value','wagering_requirement',
+    'min_deposit','is_active','expires_at','updated_date',
+  ]),
+  game_providers: new Set(['name','api_url','api_base_url','is_active','updated_date']),
+  support: new Set(['status','assigned_to','reply','updated_date']),
+  jackpot: new Set(['amount','seed_amount','max_amount','contribution_rate','win_chance_base','updated_at']),
+};
+
 const ADMIN_ONLY  = ['User'];
 const PUBLIC_READ = ['Game', 'GameProvider', 'Promotion'];
 
@@ -270,9 +295,22 @@ router.put('/:entity/:id', authMiddleware, async (req, res) => {
       return res.status(403).json({ error: 'Cannot modify other users' });
   }
 
-  const data = { ...req.body };
-  delete data.id;
-  data.updated_date = new Date().toISOString();
+  const rawData = { ...req.body };
+  delete rawData.id;
+  rawData.updated_date = new Date().toISOString();
+
+  // Whitelist columns — prevents mass assignment / arbitrary column injection
+  const allowedCols = ALLOWED_COLUMNS[table];
+  const data = {};
+  for (const [k, v] of Object.entries(rawData)) {
+    if (!allowedCols || allowedCols.has(k)) {
+      data[k] = v;
+    } else {
+      console.warn(`[entities PUT] Blocked disallowed field: ${k} on ${table}`);
+    }
+  }
+  if (!Object.keys(data).length)
+    return res.status(400).json({ error: 'No valid fields to update' });
 
   if (data.messages && typeof data.messages === 'object')
     data.messages = JSON.stringify(data.messages);
