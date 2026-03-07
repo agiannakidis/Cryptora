@@ -99,7 +99,42 @@ function parseRow(row) {
 router.get('/:entity', optionalAuth, async (req, res) => {
   const entityName = req.params.entity;
 
-  // ── ClickHouse entity (Transaction) ──
+  // ── Transaction entity — read from PG tx_idempotency (has balance_after) ──
+  if (entityName === 'Transaction') {
+    if (!req.user) return res.status(401).json({ error: 'Authentication required' });
+    const { queryAll: pgQueryAll } = require('../pgdb');
+    const limit  = Math.min(parseInt(req.query._limit) || 100, 500);
+    const offset = parseInt(req.query._offset) || 0;
+    try {
+      let sql, params;
+      const HIDDEN_TYPES = "('round_complete')";
+      if (req.user.role === 'admin') {
+        sql = `SELECT id, user_email, type, amount::float as amount, balance_after::float as balance_after,
+                 game_id, game_title, reference, created_at as created_date
+               FROM tx_idempotency
+               WHERE type NOT IN ${HIDDEN_TYPES}
+               ORDER BY created_at DESC LIMIT $1 OFFSET $2`;
+        params = [limit, offset];
+      } else {
+        sql = `SELECT id, user_email, type, amount::float as amount, balance_after::float as balance_after,
+                 game_id, game_title, reference, created_at as created_date
+               FROM tx_idempotency
+               WHERE user_email = $1 AND type NOT IN ${HIDDEN_TYPES}
+               ORDER BY created_at DESC LIMIT $2 OFFSET $3`;
+        params = [req.user.email, limit, offset];
+      }
+      const rows = await pgQueryAll(sql, params);
+      return res.json(rows.map(r => ({
+        ...r,
+        amount: parseFloat(r.amount) || 0,
+        balance_after: parseFloat(r.balance_after) || 0,
+      })));
+    } catch(e) {
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
+  // ── ClickHouse entity (legacy) ──
   if (isChEntity(entityName)) {
     if (!req.user) return res.status(401).json({ error: 'Authentication required' });
     const table  = CH_ENTITIES[entityName];
@@ -156,7 +191,7 @@ router.get('/:entity', optionalAuth, async (req, res) => {
     return res.status(403).json({ error: 'Forbidden' });
 
   const sort   = parseSort(req.query._sort);
-  const limit  = Math.min(parseInt(req.query._limit) || 500, 2000);
+  const limit  = entityName === "Game" ? 2000 : Math.min(parseInt(req.query._limit) || 500, 2000);
   const offset = parseInt(req.query._offset) || 0;
 
   const filterQuery = { ...req.query };
@@ -206,9 +241,34 @@ router.post('/:entity', authMiddleware, async (req, res) => {
 });
 
 // ── PUT /:entity/:id ──────────────────────────────────────────────────────────
+// PROTECTED FIELDS that only admins can write
+const ADMIN_WRITE_FIELDS = ['balance', 'bonus_balance', 'role', 'email_verified',
+  'total_wagered', 'vip_level', 'vip_points', 'wagering_required', 'wagering_progress'];
+
+// Entities that require admin for any write
+const ADMIN_WRITE_ENTITIES = ['User', 'Game', 'GameProvider', 'Promotion', 'Jackpot'];
+
 router.put('/:entity/:id', authMiddleware, async (req, res) => {
-  const table = getTable(req.params.entity);
+  const entityName = req.params.entity;
+  const table = getTable(entityName);
   if (!table) return res.status(404).json({ error: 'Unknown entity' });
+
+  const isAdmin = req.user.role === 'admin';
+
+  // Non-admins cannot write to protected entities
+  if (ADMIN_WRITE_ENTITIES.includes(entityName) && !isAdmin)
+    return res.status(403).json({ error: 'Admin only' });
+
+  // Non-admins cannot write protected fields on ANY entity
+  if (!isAdmin) {
+    for (const field of ADMIN_WRITE_FIELDS) {
+      if (req.body[field] !== undefined)
+        return res.status(403).json({ error: `Cannot modify protected field: ${field}` });
+    }
+    // Non-admin can only update their own record
+    if (req.params.id !== req.user.id)
+      return res.status(403).json({ error: 'Cannot modify other users' });
+  }
 
   const data = { ...req.body };
   delete data.id;
@@ -224,8 +284,31 @@ router.put('/:entity/:id', authMiddleware, async (req, res) => {
   const sql  = `UPDATE ${table} SET ${sets} WHERE id = $${keys.length + 1} RETURNING *`;
 
   try {
+    // Read before state for audit log
+    let before = null;
+    const auditFields = ADMIN_WRITE_FIELDS.filter(f => data[f] !== undefined);
+    if (isAdmin && auditFields.length > 0) {
+      const b = await queryOne(`SELECT ${auditFields.join(', ')}, email FROM ${table} WHERE id = $1`, [req.params.id]);
+      before = b;
+    }
+
     const result = await query(sql, [...Object.values(data), req.params.id]);
     if (!result.rows.length) return res.status(404).json({ error: 'Not found' });
+
+    // Audit log for admin changes to protected fields
+    if (isAdmin && auditFields.length > 0 && before) {
+      const changes = {};
+      for (const f of auditFields) {
+        changes[f] = { before: before[f], after: data[f] };
+      }
+      await query(
+        `INSERT INTO admin_audit_log (admin_id, admin_email, action, entity, entity_id, changes, ip_address)
+         VALUES ($1, $2, 'update', $3, $4, $5, $6)`,
+        [req.user.id, req.user.email, entityName, req.params.id,
+         JSON.stringify(changes), req.headers['x-forwarded-for'] || req.ip || '']
+      ).catch(e => console.error('[audit log]', e.message));
+    }
+
     res.json(parseRow(result.rows[0]));
   } catch (err) {
     console.error('[entities PUT]', err.message);
