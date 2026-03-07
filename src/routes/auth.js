@@ -435,6 +435,46 @@ router.put('/me', authMiddleware, async (req, res) => {
   res.json(sanitizeUser(updated));
 });
 
+// ── POST /change-password ────────────────────────────────────────────────────
+// Requires current password, invalidates ALL existing sessions
+router.post('/change-password', authMiddleware, async (req, res) => {
+  const { current_password, new_password } = req.body;
+  if (!current_password || !new_password)
+    return res.status(400).json({ error: 'current_password and new_password required' });
+  if (new_password.length < 8)
+    return res.status(400).json({ error: 'New password must be at least 8 characters' });
+  if (current_password === new_password)
+    return res.status(400).json({ error: 'New password must be different from current' });
+
+  try {
+    const user = await queryOne('SELECT * FROM users WHERE id = $1', [req.user.id]);
+    if (!user || !user.password_hash)
+      return res.status(400).json({ error: 'Password change not available for this account type' });
+
+    const valid = bcrypt.compareSync(current_password, user.password_hash);
+    if (!valid) return res.status(401).json({ error: 'Current password is incorrect' });
+
+    const newHash = bcrypt.hashSync(new_password, 12);
+    await query('UPDATE users SET password_hash = $1, updated_date = NOW() WHERE id = $2', [newHash, user.id]);
+
+    // Invalidate current token — user must re-login
+    if (req._token) {
+      const decoded = jwt.decode(req._token);
+      if (decoded?.exp) await blacklistToken(req._token, decoded.exp);
+      invalidateUserCache(req._token);
+    }
+
+    // Also invalidate ALL other active tokens for this user from DB
+    // We do this by storing a password_changed_at and checking it in authMiddleware
+    await query('UPDATE users SET password_changed_at = NOW() WHERE id = $1', [user.id]);
+
+    res.json({ ok: true, message: 'Password changed. Please log in again.' });
+  } catch(e) {
+    console.error('[change-password]', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ── POST /logout ──────────────────────────────────────────────────────────────
 router.post('/logout', authMiddleware, async (req, res) => {
   try {

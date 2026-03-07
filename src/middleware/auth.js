@@ -92,6 +92,14 @@ async function authMiddleware(req, res, next) {
     const decoded = jwt.verify(token, JWT_SECRET);
     const user = await queryOne('SELECT * FROM users WHERE id = $1', [decoded.id]);
     if (!user) return res.status(401).json({ error: 'User not found' });
+
+    // Check if token was issued before password change (invalidates all old sessions)
+    if (user.password_changed_at && decoded.iat) {
+      const changedAt = new Date(user.password_changed_at).getTime() / 1000;
+      if (decoded.iat < changedAt) {
+        return res.status(401).json({ error: 'Session expired — password was changed, please log in again' });
+      }
+    }
     req.user = sanitizeUser(user);
     req._token = token;
     setCached(token, req.user);
