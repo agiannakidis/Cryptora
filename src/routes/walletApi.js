@@ -89,7 +89,29 @@ function isLandPlayer(identifier) {
 }
 
 async function updateLandPlayerBalance(id, newBalance) {
+  // Always use absolute SET — caller must ensure correct value from fresh SELECT
+  if (newBalance < 0) throw new Error('Balance cannot go negative');
   return query('UPDATE operator_players SET balance=$1 WHERE id=$2', [newBalance, id]);
+}
+
+async function deductLandPlayerBalance(id, amount) {
+  // Atomic deduction with negative-balance guard
+  const result = await query(
+    'UPDATE operator_players SET balance = balance - $1 WHERE id = $2 AND balance >= $1 RETURNING balance',
+    [amount, id]
+  );
+  if (!result.rowCount) throw new Error('Insufficient funds or player not found');
+  return result.rows[0].balance;
+}
+
+async function creditLandPlayerBalance(id, amount) {
+  // Atomic credit
+  const result = await query(
+    'UPDATE operator_players SET balance = balance + $1 WHERE id = $2 RETURNING balance',
+    [amount, id]
+  );
+  if (!result.rowCount) throw new Error('Player not found');
+  return result.rows[0].balance;
 }
 
 async function findUserByEmail(email) {
@@ -132,10 +154,31 @@ async function createTx(data) {
 }
 
 async function updateBalance(userId, newBalance) {
+  // Legacy: used only when balance is pre-calculated in a locked transaction
   await query(
     'UPDATE users SET balance = $1, updated_date = NOW() WHERE id = $2',
     [newBalance, userId]
   );
+}
+
+async function atomicDeductBalance(client, userId, amount) {
+  // Atomic deduction with balance guard — returns new balance
+  const r = await client.query(
+    'UPDATE users SET balance = balance - $1, updated_date = NOW() WHERE id = $2 AND balance >= $1 RETURNING balance',
+    [amount, userId]
+  );
+  if (!r.rowCount) throw new Error('INSUFFICIENT_FUNDS');
+  return parseFloat(r.rows[0].balance);
+}
+
+async function atomicCreditBalance(client, userId, amount) {
+  // Atomic credit — returns new balance
+  const r = await client.query(
+    'UPDATE users SET balance = balance + $1, updated_date = NOW() WHERE id = $2 RETURNING balance',
+    [amount, userId]
+  );
+  if (!r.rowCount) throw new Error('USER_NOT_FOUND');
+  return parseFloat(r.rows[0].balance);
 }
 
 // ── VIP points ────────────────────────────────────────────────────────────────
@@ -247,6 +290,59 @@ function getAffiliateModule() {
   if (!_affiliateModule) { try { _affiliateModule = require('./affiliate'); } catch(e) {} }
   return _affiliateModule;
 }
+// Jackpot contribution + win check
+// Chance = base_chance * betAmount * (currentAmount / maxAmount)
+async function contributeToJackpot(betAmount, userId, userEmail, gameTitle) {
+  try {
+    const jp = await queryOne('SELECT id, amount, contribution_rate, max_amount, win_chance_base, seed_amount FROM jackpot LIMIT 1');
+    if (!jp) return;
+    const contrib = parseFloat(betAmount) * parseFloat(jp.contribution_rate);
+    if (contrib <= 0) return;
+
+    // Add contribution and get updated amount
+    const updated = await queryOne(
+      'UPDATE jackpot SET amount = amount + $1, total_contributed = total_contributed + $1, updated_at = NOW() WHERE id = $2 RETURNING amount',
+      [contrib, jp.id]
+    );
+    if (!updated || !userId) return;
+
+    // Win probability: scales with bet size and jackpot fill ratio
+    const currentAmount = parseFloat(updated.amount);
+    const maxAmount = parseFloat(jp.max_amount) || 100000;
+    const baseChance = parseFloat(jp.win_chance_base) || 0.00001;
+    const bet = parseFloat(betAmount);
+    const fillRatio = Math.min(currentAmount / maxAmount, 1);
+    const winProbability = baseChance * bet * fillRatio;
+
+    if (Math.random() >= winProbability) return; // no win this time
+
+    // === JACKPOT WIN ===
+    const seedAmount = Math.max(currentAmount * 0.01, 100); // 1% of jackpot win, min $100
+    const { randomUUID } = require('crypto');
+
+    await transaction(async (client) => {
+      // Reset jackpot to seed amount
+      await client.query(
+        'UPDATE jackpot SET amount = $1, last_won_at = NOW(), last_winner_email = $2, last_winner_amount = $3 WHERE id = $4',
+        [seedAmount, userEmail, currentAmount, jp.id]
+      );
+      // Credit winner balance
+      await client.query(
+        'UPDATE users SET balance = balance + $1 WHERE id = $2',
+        [currentAmount, userId]
+      );
+      // Record in jackpot_winners
+      await client.query(
+        'INSERT INTO jackpot_winners (id, user_id, user_email, amount, game_title, won_at) VALUES ($1,$2,$3,$4,$5,NOW())',
+        [randomUUID(), userId, userEmail || '', currentAmount, gameTitle || 'Unknown']
+      );
+    });
+    console.log('[JACKPOT WIN] ' + userEmail + ' won $' + currentAmount.toFixed(2) + ' playing ' + gameTitle);
+  } catch (e) {
+    console.error('[jackpot error]', e.message);
+  }
+}
+
 function trackAffiliateRevShare(userId, betAmount, winAmount, meta) {
   try {
     const aff = getAffiliateModule();
@@ -277,6 +373,21 @@ router.all(['/', ''], async (req, res) => {
   const sessionId = get('sessionid') || get('gamesessionid') || '';
   const accountId = get('accountid') || '';
 
+  // ── Pragmatic/GrandX signature verification ───────────────────────────────
+  // Signature = MD5(PrivateKey + all params sorted alphabetically, excluding 'hash')
+  // Only enforce when PRAGMATIC_PRIVATE_KEY is set and hash param is present
+  const privateKey = process.env.PRAGMATIC_PRIVATE_KEY;
+  const receivedHash = get('hash');
+  if (privateKey && receivedHash) {
+    const sortedKeys = Object.keys(p).filter(k => k !== 'hash').sort();
+    const paramStr = sortedKeys.map(k => `${k}=${p[k]}`).join('&');
+    const expectedHash = md5(privateKey + paramStr);
+    if (receivedHash.toUpperCase() !== expectedHash) {
+      console.warn('[walletApi] SIGNATURE MISMATCH — possible forgery attempt!', { request, sessionId, accountId });
+      return sendXml(res, xmlErr(request || 'unknown', 403, 'Invalid signature'));
+    }
+  }
+
   console.log(`[walletApi] request=${request} session=${sessionId} account=${accountId}`);
   if(request==='result') console.log('[walletApi] result params:', JSON.stringify(p));
 
@@ -304,11 +415,13 @@ router.all(['/', ''], async (req, res) => {
         }
         if (!user) return sendXml(res, xmlErr('getaccount', 1000, 'Not logged on'));
         return sendXml(res, xmlOk('getaccount', {
-          accountid:  user.id,
-          username:   user.name || user.email,
-          balance:    parseFloat(user.balance || 0).toFixed(2),
-          currency:   user.currency || 'USD',
-          country:    'US', language:   'en', sessionid:  sid || '',
+          accountid:     user.id,
+          username:      user.name || user.email,
+          balance:       parseFloat(user.balance || 0).toFixed(2),
+          currency:      user.currency || 'USD',
+          country:       'US', language: 'en',
+          sessionid:     sid || '',
+          gamesessionid: get('gamesessionid') || sid || '',
         }));
       }
 
@@ -344,8 +457,6 @@ router.all(['/', ''], async (req, res) => {
         if (isLandPlayer(accountId)) {
           const lp = await findLandPlayer(accountId);
           if (!lp) return sendXml(res, xmlErr('wager', 1000, 'Not logged on'));
-          const lpBal = parseFloat(lp.balance || 0);
-          if (lpBal < wagerAmount) return sendXml(res, xmlErr('wager', 1004, 'Insufficient funds'));
           const wagerKey2 = `wager_${accountId}_${roundId}_${transactionId}`;
           const existing2 = await findTx(wagerKey2);
           if (existing2) return sendXml(res, xmlOk('wager', {
@@ -353,8 +464,14 @@ router.all(['/', ''], async (req, res) => {
             bonusmoneybet: '0', balance: parseFloat(existing2.balance_after||0).toFixed(2),
             accounttransactionid: existing2.id,
           }));
-          const newLpBal = parseFloat((lpBal - wagerAmount).toFixed(2));
-          await updateLandPlayerBalance(lp.id, newLpBal);
+          // Atomic deduction — prevents race condition / double-spend
+          let newLpBal;
+          try {
+            newLpBal = parseFloat(await deductLandPlayerBalance(lp.id, wagerAmount));
+          } catch(e) {
+            return sendXml(res, xmlErr('wager', 1004, 'Insufficient funds'));
+          }
+          const lpBal = parseFloat((newLpBal + wagerAmount).toFixed(2));
           const txId = uuidv4();
           await createTx({ id: txId, reference: wagerKey2, user_id: lp.id, user_email: lp.username,
             type: 'bet', amount: wagerAmount, balance_after: newLpBal,
@@ -370,7 +487,7 @@ router.all(['/', ''], async (req, res) => {
           : (await findUserBySession(sessionId))?.user;
         if (!user) return sendXml(res, xmlErr('wager', 1000, 'Not logged on'));
 
-        // Idempotency
+        // Idempotency — fast path (before locking)
         const wagerKey = `wager_${gpid}_${roundId}_${transactionId}`;
         const existing = await findTx(wagerKey);
         if (existing) {
@@ -387,30 +504,57 @@ router.all(['/', ''], async (req, res) => {
         const rgExcl = rgCheckExcl(user);
         if (rgExcl.blocked) return sendXml(res, xmlErr('wager', 1003, rgExcl.reason));
 
-        if (parseFloat(user.balance || 0) < wagerAmount)
-          return sendXml(res, xmlErr('wager', 1004, 'Insufficient funds'));
+        // Atomic: lock user row, deduct balance, insert idempotency — all in one transaction
+        let newBalance, balanceBefore, txId;
+        try {
+          await transaction(async (client) => {
+            // Lock the user row — blocks concurrent wagers for same user
+            const locked = await client.query(
+              'SELECT balance FROM users WHERE id=$1 FOR UPDATE',
+              [user.id]
+            );
+            if (!locked.rowCount) throw new Error('USER_NOT_FOUND');
 
-        const balanceBefore = parseFloat(user.balance || 0);
-        const newBalance    = parseFloat((balanceBefore - wagerAmount).toFixed(2));
+            // Double-check idempotency inside the lock
+            const dup = await client.query(
+              'SELECT id, balance_after FROM tx_idempotency WHERE reference=$1',
+              [wagerKey]
+            );
+            if (dup.rowCount) {
+              // Already processed — use stored result
+              newBalance = parseFloat(dup.rows[0].balance_after);
+              txId = dup.rows[0].id;
+              balanceBefore = null; // signal duplicate
+              return;
+            }
 
-        await updateBalance(user.id, newBalance);
+            balanceBefore = parseFloat(locked.rows[0].balance || 0);
+            newBalance = await atomicDeductBalance(client, user.id, wagerAmount);
+            txId = uuidv4();
+            await client.query(`
+              INSERT INTO tx_idempotency (id, reference, user_email, type, amount, balance_after, game_id, game_title, created_at)
+              VALUES ($1,$2,$3,'bet',$4,$5,$6,$7,$8)
+              ON CONFLICT (reference) DO NOTHING
+            `, [txId, wagerKey, user.email, wagerAmount, newBalance,
+                gameTitle, gameTitle, new Date().toISOString()]);
+          });
+        } catch(e) {
+          if (e.message === 'INSUFFICIENT_FUNDS') return sendXml(res, xmlErr('wager', 1004, 'Insufficient funds'));
+          throw e;
+        }
 
-        // Fire-and-forget side effects
-        awardVipPoints(user.id, wagerAmount).catch(() => {});
-        trackWagerAffiliate(user.id, wagerAmount).catch(() => {});
-        recordRgWager(user.id, wagerAmount).catch(() => {});
-        updateWageringProgress(user.id, wagerAmount).catch(() => {});
+        // Fire-and-forget side effects (outside lock)
+        if (balanceBefore !== null) {
+          awardVipPoints(user.id, wagerAmount).catch(() => {});
+          trackWagerAffiliate(user.id, wagerAmount).catch(() => {});
+          recordRgWager(user.id, wagerAmount).catch(() => {});
+          updateWageringProgress(user.id, wagerAmount).catch(() => {});
+          contributeToJackpot(wagerAmount, user.id, user.email, gameTitle).catch(() => {});
+          // ClickHouse bet record
+          trackBet(user, gameTitle, provider, sessionId, roundId, wagerAmount, 0, balanceBefore, newBalance);
+        }
 
-        const tx = await createTx({
-          user_id: user.id, user_email: user.email,
-          type: 'bet', amount: wagerAmount,
-          balance_after: newBalance, reference: wagerKey,
-          game_title: gameTitle, description: `Wager round ${roundId}`,
-        });
-
-        // ClickHouse: record bet (win will be filled in on 'result')
-        trackBet(user, gameTitle, provider, sessionId, roundId,
-          wagerAmount, 0, balanceBefore, newBalance);
+        const tx = { id: txId }; // already inserted above
 
         return sendXml(res, xmlOk('wager', {
           gamesessionid:        sessionId,
@@ -444,11 +588,13 @@ router.all(['/', ''], async (req, res) => {
             accounttransactionid: existing2.id,
           }));
           const lpBal = parseFloat(lp.balance || 0);
-          const newLpBal = parseFloat((lpBal + winAmount).toFixed(2));
-          await updateLandPlayerBalance(lp.id, newLpBal);
+          // Only credit if win > 0 (no-win result still records TX for audit)
+          const newLpBal = winAmount > 0
+            ? parseFloat(await creditLandPlayerBalance(lp.id, winAmount))
+            : lpBal;
           const txId = uuidv4();
           await createTx({ id: txId, reference: resultKey2, user_id: lp.id, user_email: lp.username,
-            type: 'win', amount: winAmount, balance_after: newLpBal,
+            type: winAmount > 0 ? 'win' : 'loss', amount: winAmount, balance_after: newLpBal,
             game_id: gameTitle, game_title: gameTitle }).catch(()=>{});
           logWalletApi('result', {userId:lp.id,username:lp.username,sessionId:get('gamesessionid')||get('sessionid'),roundId:get('roundid'),amount:winAmount,balanceBefore:lpBal,balanceAfter:newLpBal,currency:lp.currency||'USD',operatorId:String(lp.operator_id||'')});
           return sendXml(res, xmlOk('result', {
@@ -470,17 +616,36 @@ router.all(['/', ''], async (req, res) => {
           }));
         }
 
-        const balanceBefore = parseFloat(user.balance || 0);
-        const newBalance    = parseFloat((balanceBefore + winAmount).toFixed(2));
+        let balanceBefore, newBalance, txId2;
+        await transaction(async (client) => {
+          // Lock user row
+          const locked = await client.query('SELECT balance FROM users WHERE id=$1 FOR UPDATE', [user.id]);
+          if (!locked.rowCount) throw new Error('USER_NOT_FOUND');
 
-        await updateBalance(user.id, newBalance);
+          // Double-check idempotency inside lock
+          const dup = await client.query('SELECT id, balance_after FROM tx_idempotency WHERE reference=$1', [resultKey]);
+          if (dup.rowCount) {
+            newBalance = parseFloat(dup.rows[0].balance_after);
+            txId2 = dup.rows[0].id;
+            balanceBefore = null;
+            return;
+          }
 
-        const tx = await createTx({
-          user_id: user.id, user_email: user.email,
-          type: 'win', amount: winAmount,
-          balance_after: newBalance, reference: resultKey,
-          game_title: gameTitle, description: `Result round ${roundId} (${gameStatus})`,
+          balanceBefore = parseFloat(locked.rows[0].balance || 0);
+          newBalance = winAmount > 0
+            ? await atomicCreditBalance(client, user.id, winAmount)
+            : balanceBefore;
+
+          txId2 = uuidv4();
+          await client.query(`
+            INSERT INTO tx_idempotency (id, reference, user_email, type, amount, balance_after, game_id, game_title, created_at)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+            ON CONFLICT (reference) DO NOTHING
+          `, [txId2, resultKey, user.email, winAmount > 0 ? 'win' : 'loss',
+              winAmount, newBalance, gameTitle, gameTitle, new Date().toISOString()]);
         });
+
+        const tx = { id: txId2 };
 
         if (gameStatus === 'completed') {
           await createTx({
@@ -517,6 +682,29 @@ router.all(['/', ''], async (req, res) => {
         if (!transactionId || !roundId)
           return sendXml(res, xmlErr('rollback', 1008, 'Parameter required'));
 
+        // Land player rollback — refund the bet atomically
+        if (isLandPlayer(accountId)) {
+          const lp = await findLandPlayer(accountId);
+          if (!lp) return sendXml(res, xmlErr('rollback', 1000, 'Not logged on'));
+          const rbKey2 = `rollback_${accountId}_${roundId}_${transactionId}`;
+          const existing2 = await findTx(rbKey2);
+          if (existing2) return sendXml(res, xmlOk('rollback', {
+            gamesessionid: sessionId, balance: parseFloat(existing2.balance_after||0).toFixed(2),
+            accounttransactionid: existing2.id,
+          }));
+          const lpBal = parseFloat(lp.balance || 0);
+          const newLpBal = rollbackAmount > 0
+            ? parseFloat(await creditLandPlayerBalance(lp.id, rollbackAmount))
+            : lpBal;
+          const txId = uuidv4();
+          await createTx({ id: txId, reference: rbKey2, user_id: lp.id, user_email: lp.username,
+            type: 'refund', amount: rollbackAmount, balance_after: newLpBal,
+            game_id: '', game_title: '' }).catch(()=>{});
+          return sendXml(res, xmlOk('rollback', {
+            gamesessionid: sessionId, balance: newLpBal.toFixed(2), accounttransactionid: txId,
+          }));
+        }
+
         const user = accountId
           ? await findUserById(accountId)
           : (await findUserBySession(sessionId))?.user;
@@ -536,15 +724,20 @@ router.all(['/', ''], async (req, res) => {
           }));
         }
 
-        const newBalance = parseFloat((parseFloat(user.balance || 0) + rollbackAmount).toFixed(2));
-        await updateBalance(user.id, newBalance);
-
-        const tx = await createTx({
-          user_id: user.id, user_email: user.email,
-          type: 'refund', amount: rollbackAmount,
-          balance_after: newBalance, reference: rbKey,
-          description: `Rollback round ${roundId}`,
+        // Atomic rollback — credit bet amount back with row lock
+        let newBalance, rbTxId;
+        await transaction(async (client) => {
+          const dup = await client.query('SELECT id, balance_after FROM tx_idempotency WHERE reference=$1', [rbKey]);
+          if (dup.rowCount) { newBalance = parseFloat(dup.rows[0].balance_after); rbTxId = dup.rows[0].id; return; }
+          await client.query('SELECT balance FROM users WHERE id=$1 FOR UPDATE', [user.id]);
+          newBalance = rollbackAmount > 0
+            ? await atomicCreditBalance(client, user.id, rollbackAmount)
+            : parseFloat(user.balance || 0);
+          rbTxId = uuidv4();
+          const rbSql = 'INSERT INTO tx_idempotency (id, reference, user_email, type, amount, balance_after, game_id, game_title, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (reference) DO NOTHING';
+          await client.query(rbSql, [rbTxId, rbKey, user.email, 'refund', rollbackAmount, newBalance, '', '', new Date().toISOString()]);
         });
+        const tx = { id: rbTxId };
 
         return sendXml(res, xmlOk('rollback', {
           gamesessionid:        sessionId,
