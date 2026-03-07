@@ -87,19 +87,35 @@ router.post('/withdraw', authenticate, async (req, res) => {
 
   if (amountUsd < 1) return res.status(400).json({ error: 'Minimum withdrawal is $1' });
 
-  const user = await queryOne('SELECT balance FROM users WHERE id = $1', [req.user.id]);
-  if (!user || parseFloat(user.balance) < amountUsd)
-    return res.status(400).json({ error: 'Insufficient balance' });
-
-  // Deduct balance + create withdrawal record atomically
+  // FIX: Atomic balance check + deduction with FOR UPDATE (prevents double-spend race condition)
   const withdrawalId = uuidv4();
-  await transaction(async (client) => {
-    await client.query('UPDATE users SET balance = balance - $1 WHERE id = $2', [amountUsd, req.user.id]);
-    await client.query(`
-      INSERT INTO crypto_withdrawals (id, user_id, user_email, chain, token, amount_crypto, amount_usd, to_address, status)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending')
-    `, [withdrawalId, req.user.id, req.user.email, chain, token, amountNum.toString(), amountUsd, to_address]);
-  });
+  try {
+    await transaction(async (client) => {
+      // Lock user row — blocks concurrent withdrawals for same user
+      const locked = await client.query(
+        'SELECT balance FROM users WHERE id = $1 FOR UPDATE',
+        [req.user.id]
+      );
+      if (!locked.rowCount) throw new Error('USER_NOT_FOUND');
+      if (parseFloat(locked.rows[0].balance) < amountUsd) throw new Error('INSUFFICIENT_FUNDS');
+
+      // Atomic deduction with balance guard
+      const updated = await client.query(
+        'UPDATE users SET balance = balance - $1 WHERE id = $2 AND balance >= $1 RETURNING balance',
+        [amountUsd, req.user.id]
+      );
+      if (!updated.rowCount) throw new Error('INSUFFICIENT_FUNDS');
+
+      await client.query(`
+        INSERT INTO crypto_withdrawals (id, user_id, user_email, chain, token, amount_crypto, amount_usd, to_address, status)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending')
+      `, [withdrawalId, req.user.id, req.user.email, chain, token, amountNum.toString(), amountUsd, to_address]);
+    });
+  } catch (e) {
+    if (e.message === 'INSUFFICIENT_FUNDS') return res.status(400).json({ error: 'Insufficient balance' });
+    if (e.message === 'USER_NOT_FOUND') return res.status(404).json({ error: 'User not found' });
+    throw e;
+  }
 
   // Process async — refund on failure
   processWithdrawal(withdrawalId).catch(async (err) => {
@@ -137,6 +153,24 @@ router.get('/admin/stats', authenticate, async (req, res) => {
 });
 
 // ── Admin: pending withdrawals ────────────────────────────────────────────────
+
+// GET /admin/withdrawals?status=pending (frontend compat alias)
+router.get('/admin/withdrawals', authenticate, async (req, res) => {
+  try {
+    const status = req.query.status || 'pending';
+    const limit = parseInt(req.query.limit) || 100;
+    const rows = await queryAll(
+      `SELECT cw.*, u.email FROM crypto_withdrawals cw
+       LEFT JOIN users u ON u.id = cw.user_id
+       WHERE cw.status = $1 ORDER BY cw.created_date DESC LIMIT $2`,
+      [status, limit]
+    );
+    res.json({ withdrawals: rows });
+  } catch (e) {
+    console.error('[admin withdrawals]', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
 
 router.get('/admin/withdrawals/pending', authenticate, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
@@ -191,6 +225,420 @@ router.get('/admin/addresses', authenticate, async (req, res) => {
     ORDER BY ca.created_date DESC
   `);
   res.json({ addresses: rows });
+});
+
+
+// ── Admin: sweep — create withdrawal from admin's own balance
+router.post('/admin/sweep', authenticate, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+  const { chain, token, to_address, amount } = req.body;
+  if (!chain || !token || !to_address) return res.status(400).json({ error: 'chain, token, to_address required' });
+
+  try {
+    const prices = await getPrices();
+    const chainConfig = CHAINS[chain];
+    if (!chainConfig) return res.status(400).json({ error: 'Unsupported chain' });
+
+    const adminUser = await queryOne('SELECT balance FROM users WHERE id=$1', [req.user.id]);
+    const availableUsd = parseFloat(adminUser.balance || 0);
+    if (availableUsd <= 0) return res.status(400).json({ error: 'No balance to sweep' });
+
+    const priceKey = (token === 'USDT' || token === 'USDC') ? token : chainConfig.symbol;
+    const tokenPrice = prices[priceKey] || 1;
+    const amountCrypto = amount ? parseFloat(amount) : availableUsd / tokenPrice;
+    const amountUsd = amountCrypto * tokenPrice;
+
+    if (amountUsd > availableUsd) return res.status(400).json({ error: 'Insufficient balance' });
+
+    const withdrawalId = uuidv4();
+    await transaction(async (client) => {
+      await client.query('UPDATE users SET balance = balance - $1 WHERE id = $2', [amountUsd, req.user.id]);
+      await client.query(
+        "INSERT INTO crypto_withdrawals (id, user_id, user_email, chain, token, amount_crypto, amount_usd, to_address, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending')",
+        [withdrawalId, req.user.id, req.user.email, chain, token, amountCrypto.toString(), amountUsd, to_address]
+      );
+    });
+
+    processWithdrawal(withdrawalId).catch(async (err) => {
+      await query('UPDATE users SET balance = balance + $1 WHERE id = $2', [amountUsd, req.user.id]);
+      console.error('[sweep refund]', err.message);
+    });
+
+    res.json({ ok: true, swept: 1, totalSent: amountCrypto, withdrawalId,
+      results: [{ address: to_address, txHash: 'pending', amount: amountCrypto }] });
+  } catch(e) {
+    console.error('[admin sweep]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+
+// ── Admin: check on-chain balances across all user wallets ──────────────────
+
+router.get('/admin/wallet-totals', authenticate, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+
+  const evmChain = require('../crypto/chains/evm');
+
+  const rows = await queryAll(
+    `SELECT chain, token, array_agg(address) as addresses, COUNT(*) as cnt
+     FROM crypto_addresses GROUP BY chain, token ORDER BY chain, token`,
+    []
+  );
+
+  const prices = await getPrices();
+  const results = [];
+
+  // Create ONE TronWeb instance for all TRX calls
+  let tronWeb = null;
+  let tronContract = null;
+
+  for (const row of rows) {
+    const { chain, token, cnt } = row;
+    const addresses = row.addresses || [];
+    const chainConfig = CHAINS[chain];
+    if (!chainConfig || !addresses.length) continue;
+
+    const priceKey = (token === 'USDT' || token === 'USDC') ? token : chainConfig.symbol;
+    const tokenPrice = prices[priceKey] || 1;
+
+    let totalBalance = 0;
+    let errorCount = 0;
+
+    // Process sequentially for TRX (rate limit), parallel for EVM
+    if (chain === 'TRX') {
+      try {
+        const { TronWeb } = require('tronweb');
+        const apiKey = process.env.TRONGRID_API_KEY;
+        if (!tronWeb) {
+          tronWeb = new TronWeb({
+            fullHost: 'https://api.trongrid.io',
+            headers: apiKey ? { 'TRON-PRO-API-KEY': apiKey } : {},
+            privateKey: 'a'.repeat(64),
+          });
+        }
+
+        for (const address of addresses) {
+          try {
+            await new Promise(r => setTimeout(r, 500)); // sequential + delay
+            let bal = 0;
+            if (token === 'TRX') {
+              const b = await tronWeb.trx.getBalance(address);
+              bal = (b || 0) / 1e6;
+            } else {
+              const contractAddr = chainConfig.tokenContracts?.[token];
+              if (contractAddr) {
+                if (!tronContract || tronContract._address !== contractAddr) {
+                  tronContract = await tronWeb.contract().at(contractAddr);
+                  tronContract._address = contractAddr;
+                }
+                const b = await tronContract.balanceOf(address).call();
+                bal = Number(b) / 1e6;
+              }
+            }
+            totalBalance += bal;
+          } catch (e) {
+            errorCount++;
+          }
+        }
+      } catch (e) {
+        errorCount += addresses.length;
+      }
+    } else if (chainConfig.type === 'evm') {
+      // EVM: parallel in small batches
+      const BATCH = 5;
+      for (let i = 0; i < addresses.length; i += BATCH) {
+        const batch = addresses.slice(i, i + BATCH);
+        const bals = await Promise.all(batch.map(async (address) => {
+          try {
+            if (token === chainConfig.symbol) {
+              return await evmChain.getNativeBalance(chain, address);
+            } else {
+              const contract = chainConfig.tokenContracts?.[token];
+              if (!contract) return 0;
+              return await evmChain.getTokenBalance(chain, address, contract);
+            }
+          } catch { errorCount++; return 0; }
+        }));
+        totalBalance += bals.reduce((s, b) => s + b, 0);
+        if (i + BATCH < addresses.length) await new Promise(r => setTimeout(r, 200));
+      }
+    } else if (chain === 'BTC' || chain === 'LTC') {
+      const api = chain === 'BTC' ? 'https://blockstream.info/api' : 'https://litecoinspace.org/api';
+      for (const address of addresses) {
+        try {
+          await new Promise(r => setTimeout(r, 300));
+          const r = await fetch(`${api}/address/${address}/utxo`);
+          const utxos = await r.json();
+          totalBalance += Array.isArray(utxos) ? utxos.reduce((s, u) => s + (u.value || 0), 0) / 1e8 : 0;
+        } catch { errorCount++; }
+      }
+    } else if (chain === 'XRP') {
+      for (const address of addresses) {
+        try {
+          await new Promise(r => setTimeout(r, 300));
+          const r = await fetch('https://xrplcluster.com', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ method: 'account_info', params: [{ account: address, ledger_index: 'current' }] })
+          });
+          const d = await r.json();
+          totalBalance += d?.result?.account_data ? Math.max(0, parseInt(d.result.account_data.Balance) / 1e6 - 10) : 0;
+        } catch { errorCount++; }
+      }
+    } else if (chain === 'SOL') {
+      for (const address of addresses) {
+        try {
+          await new Promise(r => setTimeout(r, 300));
+          const r = await fetch('https://api.mainnet-beta.solana.com', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getBalance', params: [address] })
+          });
+          const d = await r.json();
+          totalBalance += (d?.result?.value || 0) / 1e9;
+        } catch { errorCount++; }
+      }
+    }
+
+    const totalUsd = totalBalance * tokenPrice;
+    results.push({
+      chain, token,
+      walletCount: parseInt(cnt),
+      totalBalance: parseFloat(totalBalance.toFixed(6)),
+      totalUsd: parseFloat(totalUsd.toFixed(2)),
+      pricePerToken: tokenPrice,
+      errors: errorCount,
+    });
+  }
+
+  results.sort((a, b) => b.totalUsd - a.totalUsd);
+  const grandTotalUsd = results.reduce((s, r) => s + r.totalUsd, 0);
+  res.json({ ok: true, results, grandTotalUsd: parseFloat(grandTotalUsd.toFixed(2)) });
+});
+
+// ── Admin: sweep ALL user wallet balances on a chain/token → admin's address ──
+
+router.post('/admin/sweep-all', authenticate, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+  const { chain, token, to_address, min_usd = 1 } = req.body;
+  if (!chain || !token || !to_address) return res.status(400).json({ error: 'chain, token, to_address required' });
+
+  const chainConfig = CHAINS[chain];
+  if (!chainConfig) return res.status(400).json({ error: 'Unsupported chain' });
+
+  const { getPrivateKey } = require('../crypto/wallet');
+  const evmChain = require('../crypto/chains/evm');
+  const tronChain = require('../crypto/chains/tron');
+  const btcChain = require('../crypto/chains/bitcoin');
+  const xrpChain = require('../crypto/chains/xrp');
+  const solanaChain = require('../crypto/chains/solana');
+
+  const prices = await getPrices();
+  const priceKey = (token === 'USDT' || token === 'USDC') ? token : chainConfig.symbol;
+  const tokenPrice = prices[priceKey] || 1;
+
+  // Get all addresses for this chain/token
+  const addresses = await queryAll(
+    `SELECT DISTINCT ON (address) user_id, address, derivation_index
+     FROM crypto_addresses WHERE chain = $1 AND token = $2`,
+    [chain, token]
+  );
+
+  if (!addresses.length) return res.json({ ok: true, swept: 0, results: [], message: 'No addresses found' });
+
+  const results = [];
+  let totalSwept = 0;
+
+  for (const row of addresses) {
+    try {
+      let balance = 0;
+
+      if (chainConfig.type === 'evm') {
+        if (token === chainConfig.symbol) {
+          balance = await evmChain.getNativeBalance(chain, row.address);
+        } else {
+          const contract = chainConfig.tokenContracts?.[token];
+          if (!contract) continue;
+          balance = await evmChain.getTokenBalance(chain, row.address, contract);
+        }
+      } else if (chain === 'TRX') {
+        if (token === 'TRX') {
+          balance = await tronChain.getTRXBalance(row.address);
+        } else {
+          const contract = chainConfig.tokenContracts?.[token];
+          if (!contract) continue;
+          balance = await tronChain.getTRC20Balance(row.address, contract);
+        }
+      } else if (chain === 'BTC') {
+        try {
+          const r = await fetch(`https://blockstream.info/api/address/${row.address}/utxo`);
+          const utxos = await r.json();
+          balance = utxos.reduce((s, u) => s + (u.value || 0), 0) / 1e8;
+        } catch { balance = 0; }
+      } else if (chain === 'LTC') {
+        try {
+          const r = await fetch(`https://litecoinspace.org/api/address/${row.address}/utxo`);
+          const utxos = await r.json();
+          balance = utxos.reduce((s, u) => s + (u.value || 0), 0) / 1e8;
+        } catch { balance = 0; }
+      } else if (chain === 'XRP') {
+        try {
+          const r = await fetch('https://xrplcluster.com', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ method: 'account_info', params: [{ account: row.address, ledger_index: 'current' }] })
+          });
+          const d = await r.json();
+          balance = d?.result?.account_data ? (parseInt(d.result.account_data.Balance) / 1e6) - 10 : 0;
+        } catch { balance = 0; }
+      } else if (chain === 'SOL') {
+        try {
+          const r = await fetch('https://api.mainnet-beta.solana.com', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getBalance', params: [row.address] })
+          });
+          const d = await r.json();
+          balance = (d?.result?.value || 0) / 1e9;
+        } catch { balance = 0; }
+      }
+
+      const balanceUsd = balance * tokenPrice;
+      if (balanceUsd < parseFloat(min_usd) || balance <= 0) {
+        results.push({ address: row.address, balance, balanceUsd, status: 'skipped', reason: 'below min' });
+        continue;
+      }
+
+      // Reserve gas for native tokens
+      let amountToSend = balance;
+      if (token === chainConfig.symbol) {
+        if (chain === 'ETH') amountToSend = Math.max(0, balance - 0.003);
+        else if (chain === 'BSC' || chain === 'POLYGON' || chain === 'ARBITRUM') amountToSend = Math.max(0, balance - 0.005);
+        else if (chain === 'TRX') amountToSend = Math.max(0, balance - 5);
+        else if (chain === 'BTC') amountToSend = Math.max(0, balance - 0.0001);
+        else if (chain === 'LTC') amountToSend = Math.max(0, balance - 0.001);
+        else if (chain === 'SOL') amountToSend = Math.max(0, balance - 0.01);
+        else if (chain === 'XRP') amountToSend = Math.max(0, balance - 0.1);
+      }
+
+      if (amountToSend <= 0) {
+        results.push({ address: row.address, balance, balanceUsd, status: 'skipped', reason: 'too small after gas' });
+        continue;
+      }
+
+      const privateKey = await getPrivateKey(row.user_id, chain, token);
+      let txHash = null;
+
+      if (chainConfig.type === 'evm') {
+        if (token === chainConfig.symbol) {
+          const r = await evmChain.sendNative(chain, privateKey, to_address, amountToSend);
+          txHash = r.txHash;
+        } else {
+          const contract = chainConfig.tokenContracts?.[token];
+          const r = await evmChain.sendToken(chain, privateKey, to_address, amountToSend, contract, 6);
+          txHash = r.txHash;
+        }
+      } else if (chain === 'TRX') {
+        if (token === 'TRX') {
+          const r = await tronChain.sendTRX(privateKey, to_address, amountToSend);
+          txHash = r.txHash;
+        } else {
+          const contract = chainConfig.tokenContracts?.[token];
+          const r = await tronChain.sendTRC20(privateKey, to_address, amountToSend, contract);
+          txHash = r.txHash;
+        }
+      } else if (chain === 'BTC' || chain === 'LTC') {
+        const amtSats = Math.floor(amountToSend * 1e8);
+        const r = await btcChain.sendBTC(privateKey, row.address, to_address, amtSats, chain);
+        txHash = r.txHash;
+      } else if (chain === 'XRP') {
+        const r = await xrpChain.sendXRP(privateKey, to_address, amountToSend);
+        txHash = r.txHash;
+      } else if (chain === 'SOL') {
+        const r = await solanaChain.sendSOL(privateKey, to_address, amountToSend);
+        txHash = r.txHash;
+      }
+
+      const sentUsd = amountToSend * tokenPrice;
+      totalSwept += sentUsd;
+      results.push({ address: row.address, balance, amountSent: amountToSend, sentUsd, txHash, status: 'swept' });
+      console.log(`[sweep-all] ${row.address} → ${to_address}: ${amountToSend} ${token}@${chain} tx=${txHash}`);
+
+      await new Promise(r => setTimeout(r, 600));
+    } catch (e) {
+      console.error(`[sweep-all] ${row.address}: ${e.message}`);
+      results.push({ address: row.address, status: 'error', error: e.message });
+    }
+  }
+
+  const swept = results.filter(r => r.status === 'swept').length;
+  res.json({ ok: true, swept, totalSweptUsd: totalSwept.toFixed(2), toAddress: to_address, chain, token, results });
+});
+
+
+// ── Admin: get wallets + on-chain balances for a specific user ──────────────
+router.get('/admin/user-wallets/:userId', authenticate, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+  const { userId } = req.params;
+
+  const addrs = await queryAll(
+    'SELECT chain, token, address FROM crypto_addresses WHERE user_id = $1 ORDER BY chain, token',
+    [userId]
+  );
+
+  if (!addrs.length) return res.json({ ok: true, wallets: [] });
+
+  const { TronWeb } = require('tronweb');
+  const evmChain = require('../crypto/chains/evm');
+  const prices = await getPrices();
+  const apiKey = process.env.TRONGRID_API_KEY;
+
+  let tw = null;
+  let tronContracts = {};
+  const results = [];
+
+  for (const row of addrs) {
+    const { chain, token, address } = row;
+    const chainConfig = CHAINS[chain];
+    if (!chainConfig) { results.push({ chain, token, address, balance: 0, balanceUsd: 0 }); continue; }
+
+    const priceKey = (token === 'USDT' || token === 'USDC') ? token : chainConfig.symbol;
+    const price = prices[priceKey] || 1;
+    let balance = 0;
+
+    try {
+      if (chain === 'TRX') {
+        if (!tw) tw = new TronWeb({
+          fullHost: 'https://api.trongrid.io',
+          headers: apiKey ? { 'TRON-PRO-API-KEY': apiKey } : {},
+          privateKey: 'a'.repeat(64),
+        });
+        await new Promise(r => setTimeout(r, 400));
+        if (token === 'TRX') {
+          balance = ((await tw.trx.getBalance(address)) || 0) / 1e6;
+        } else {
+          const contractAddr = chainConfig.tokenContracts?.[token];
+          if (contractAddr) {
+            if (!tronContracts[contractAddr]) tronContracts[contractAddr] = await tw.contract().at(contractAddr);
+            balance = Number(await tronContracts[contractAddr].balanceOf(address).call()) / 1e6;
+          }
+        }
+      } else if (chainConfig.type === 'evm') {
+        if (token === chainConfig.symbol) {
+          balance = await evmChain.getNativeBalance(chain, address);
+        } else {
+          const contract = chainConfig.tokenContracts?.[token];
+          if (contract) balance = await evmChain.getTokenBalance(chain, address, contract);
+        }
+      }
+    } catch {}
+
+    results.push({
+      chain, token, address,
+      balance: parseFloat(balance.toFixed(6)),
+      balanceUsd: parseFloat((balance * price).toFixed(2)),
+    });
+  }
+
+  const totalUsd = results.reduce((s, r) => s + r.balanceUsd, 0);
+  res.json({ ok: true, wallets: results, totalUsd: parseFloat(totalUsd.toFixed(2)) });
 });
 
 module.exports = router;
