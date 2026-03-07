@@ -75,6 +75,18 @@ const apiLimiter = rateLimit({
 
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
+app.use('/api/auth/sms', authLimiter);
+
+// Withdrawal limiter: max 5 per 10 min per IP
+const withdrawLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many withdrawal requests, please wait 10 minutes' },
+});
+app.use('/api/crypto/withdraw', withdrawLimiter);
+
 app.use('/api/', apiLimiter);
 
 // Routes
@@ -109,6 +121,18 @@ app.get('/api/health', (req, res) => res.json({ ok: true, time: new Date().toISO
 const server = http.createServer(app);
 const { createChatServer } = require('./chat');
 createChatServer(server);
+
+// ── Global Express error handler ─────────────────────────────────────────────
+// Must be AFTER all routes (4 params = error middleware)
+app.use((err, req, res, next) => {
+  const isDev = process.env.NODE_ENV !== 'production';
+  console.error('[GlobalError]', req.method, req.path, err.message, isDev ? err.stack : '');
+  // Never leak internal details in production
+  res.status(err.status || 500).json({
+    error: isDev ? err.message : 'Internal server error',
+    ...(isDev && { stack: err.stack }),
+  });
+});
 
 // Global crash guards — log instead of dying silently  
 process.on('uncaughtException', (err) => {
