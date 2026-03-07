@@ -1,4 +1,9 @@
 const { v4: uuidv4 } = require('uuid');
+let recordDeposit = () => {};
+let checkDepositLimit = () => ({ allowed: true });
+try {
+  ({ recordDeposit, checkDepositLimit } = require('../rg-check'));
+} catch(e) { console.warn('[monitor] rg-check not available'); }
 const { queryAll, queryOne, query } = require('../pgdb');
 const { insert: chInsert } = require('../chdb');
 const { CHAINS } = require('./config');
@@ -49,7 +54,10 @@ async function creditDeposit(userId, chain, token, amount, txHash, amountUsd) {
     created_at: now, confirmed_at: now,
   }]).catch(e => console.error('[CH deposit]', e.message));
 
-  // PG: update user balance
+  // RG: record deposit for limits tracking
+  await recordDeposit(userId, amountUsd);
+
+  // PG: update user balance (atomic credit)
   await query('UPDATE users SET balance = balance + $1, updated_date = NOW() WHERE id = $2', [amountUsd, userId]);
 
   // Add to PG tx_idempotency for reference

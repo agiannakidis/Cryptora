@@ -1,4 +1,10 @@
 const express = require('express');
+let checkSelfExclusion = () => ({ blocked: false });
+let checkDepositLimit = () => ({ allowed: true });
+let recordDeposit = () => {};
+try {
+  ({ checkSelfExclusion, checkDepositLimit, recordDeposit } = require('../rg-check'));
+} catch(e) { console.warn('[crypto] rg-check not available:', e.message); }
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const { authMiddleware: authenticate } = require('../middleware/auth');
@@ -86,6 +92,10 @@ router.post('/withdraw', authenticate, async (req, res) => {
   const amountUsd = amountNum * (prices[priceKey] || 0);
 
   if (amountUsd < 1) return res.status(400).json({ error: 'Minimum withdrawal is $1' });
+
+  // RG: Self-exclusion check before withdrawal
+  const rgExclusion = await checkSelfExclusion(req.user.id);
+  if (rgExclusion.blocked) return res.status(403).json({ error: rgExclusion.reason });
 
   // FIX: Atomic balance check + deduction with FOR UPDATE (prevents double-spend race condition)
   const withdrawalId = uuidv4();
