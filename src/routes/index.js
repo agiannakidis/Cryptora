@@ -16,6 +16,7 @@ app.use('/api/functions', require('./routes/functions'));
 app.use('/api/functions', require('./routes/walletApi'));
 app.use('/api/apps', require('./routes/app'));
 
+app.use("/api/analytics", require("./routes/analytics"));
 app.use("/api/ticker", require("./routes/ticker"));
 
 // Health check

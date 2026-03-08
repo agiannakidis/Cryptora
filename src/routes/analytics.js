@@ -204,4 +204,152 @@ router.get('/audit-log', authMiddleware, async (req, res) => {
   }
 });
 
+
+// ── GET /api/analytics/bi — BI Dashboard (GGR/NGR/ARPU from ClickHouse) ──────
+router.get('/bi', authMiddleware, async (req, res) => {
+  try {
+    const { queryAll: chQuery } = require('../chdb');
+    const { queryOne: pgOne, queryAll: pgAll } = require('../pgdb');
+    const period = req.query.period || '30d';
+    const d = days(period);
+
+    // Parallel queries: ClickHouse + PostgreSQL
+    const [
+      ggrData, dailyGgr, topGames, topPlayers, topProviders,
+      activeUsers, newUsers, depositsData, bonusData
+    ] = await Promise.all([
+      // Overall GGR/NGR
+      chQuery(`
+        SELECT
+          sum(bet_amount) AS total_bets,
+          sum(win_amount) AS total_wins,
+          sum(bet_amount) - sum(win_amount) AS ggr,
+          count() AS total_rounds,
+          countDistinct(user_id) AS active_players
+        FROM casino.bets
+        WHERE created_at >= now() - INTERVAL ${d} DAY
+      `),
+
+      // Daily GGR breakdown
+      chQuery(`
+        SELECT
+          toDate(created_at) AS day,
+          sum(bet_amount) AS bets,
+          sum(win_amount) AS wins,
+          sum(bet_amount) - sum(win_amount) AS ggr,
+          countDistinct(user_id) AS players
+        FROM casino.bets
+        WHERE created_at >= now() - INTERVAL ${d} DAY
+        GROUP BY day
+        ORDER BY day ASC
+      `),
+
+      // Top games by GGR
+      chQuery(`
+        SELECT
+          game_title,
+          provider,
+          sum(bet_amount) AS bets,
+          sum(win_amount) AS wins,
+          sum(bet_amount) - sum(win_amount) AS ggr,
+          count() AS rounds,
+          countDistinct(user_id) AS players
+        FROM casino.bets
+        WHERE created_at >= now() - INTERVAL ${d} DAY
+        GROUP BY game_title, provider
+        ORDER BY ggr DESC
+        LIMIT 15
+      `),
+
+      // Top players by GGR contribution
+      chQuery(`
+        SELECT
+          user_email,
+          sum(bet_amount) AS bets,
+          sum(win_amount) AS wins,
+          sum(bet_amount) - sum(win_amount) AS ggr,
+          count() AS rounds
+        FROM casino.bets
+        WHERE created_at >= now() - INTERVAL ${d} DAY
+        GROUP BY user_email
+        ORDER BY ggr DESC
+        LIMIT 10
+      `),
+
+      // Top providers by GGR
+      chQuery(`
+        SELECT
+          provider,
+          sum(bet_amount) AS bets,
+          sum(win_amount) AS wins,
+          sum(bet_amount) - sum(win_amount) AS ggr,
+          countDistinct(game_id) AS games,
+          countDistinct(user_id) AS players,
+          count() AS rounds
+        FROM casino.bets
+        WHERE created_at >= now() - INTERVAL ${d} DAY
+        GROUP BY provider
+        ORDER BY ggr DESC
+      `),
+
+      // Active users (PostgreSQL)
+      pgOne(`SELECT COUNT(DISTINCT id) as cnt FROM users WHERE role='player' AND created_date >= NOW() - INTERVAL '${d} days'`),
+
+      // New registrations
+      pgOne(`SELECT COUNT(*) as cnt FROM users WHERE role='player' AND created_date >= NOW() - INTERVAL '${d} days'`),
+
+      // Deposit volume (ClickHouse)
+      chQuery(`
+        SELECT
+          count() AS cnt,
+          sum(amount_usd) AS volume
+        FROM casino.crypto_deposits
+        WHERE created_at >= now() - INTERVAL ${d} DAY
+          AND status = 'credited'
+      `),
+
+      // Bonus stats (PostgreSQL)
+      pgOne(`
+        SELECT
+          COUNT(*) as bonuses_claimed,
+          COALESCE(SUM(bonus_amount), 0) as bonus_total
+        FROM promotions
+        WHERE status = 'active' OR status = 'completed'
+      `).catch(() => ({ bonuses_claimed: 0, bonus_total: 0 })),
+    ]);
+
+    const ggr = ggrData[0] || {};
+    const ggrVal = parseFloat(ggr.ggr || 0);
+    const bonusTotal = parseFloat(bonusData?.bonus_total || 0);
+    const ngrVal = ggrVal - bonusTotal;
+    const activePlayers = parseInt(ggr.active_players || 0);
+    const arpuVal = activePlayers > 0 ? (ggrVal / activePlayers) : 0;
+
+    res.json({
+      ok: true,
+      period,
+      summary: {
+        ggr:           parseFloat(ggrVal.toFixed(2)),
+        ngr:           parseFloat(ngrVal.toFixed(2)),
+        arpu:          parseFloat(arpuVal.toFixed(2)),
+        totalBets:     parseFloat(parseFloat(ggr.total_bets || 0).toFixed(2)),
+        totalWins:     parseFloat(parseFloat(ggr.total_wins || 0).toFixed(2)),
+        totalRounds:   parseInt(ggr.total_rounds || 0),
+        activePlayers: activePlayers,
+        newPlayers:    parseInt(newUsers?.cnt || 0),
+        deposits:      parseInt(depositsData[0]?.cnt || 0),
+        depositVolume: parseFloat(parseFloat(depositsData[0]?.volume || 0).toFixed(2)),
+        bonusCost:     parseFloat(bonusTotal.toFixed(2)),
+      },
+      dailyGgr,
+      topGames,
+      topPlayers: topPlayers.map(p => ({ ...p, user_email: p.user_email.replace(/(?<=.{2}).+(?=@)/, '***') })),
+      topProviders,
+    });
+  } catch(e) {
+    console.error('[bi]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 module.exports = router;

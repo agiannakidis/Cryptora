@@ -6,7 +6,7 @@ const providers = {};
 function getProvider(chainId) {
   if (!providers[chainId]) {
     const chain = CHAINS[chainId];
-    providers[chainId] = new ethers.JsonRpcProvider(chain.rpc);
+    providers[chainId] = new ethers.JsonRpcProvider(chain.rpc, chain.chainId, { staticNetwork: true });
   }
   return providers[chainId];
 }
@@ -36,7 +36,7 @@ async function getIncomingTokenTransfers(chainId, address, contractAddress, from
 
   const currentBlock = await provider.getBlockNumber();
   const rawStart = fromBlock || 0;
-  const startBlock = Math.max(rawStart, currentBlock - 900); // Cap at 900 blocks (free RPC limit)
+  const startBlock = Math.max(rawStart, currentBlock - 499); // Cap at 900 blocks (free RPC limit)
 
   const filter = contract.filters.Transfer(null, address);
   const logs = await contract.queryFilter(filter, startBlock, currentBlock);

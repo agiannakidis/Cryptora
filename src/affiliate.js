@@ -1,132 +1,108 @@
-// /root/casino-backend/src/affiliate.js
-// Core affiliate tracking: CPA on first deposit, RevShare on wagers
-
-const db = require('./db');
+// /root/casino-backend/src/affiliate.js — migrated to PostgreSQL
+const { queryOne, query } = require('./pgdb');
 const { v4: uuidv4 } = require('uuid');
+const https_m = require('https');
+const http_m = require('http');
+const url_m = require('url');
 
-/**
- * Called on new user registration.
- * Links user to affiliate if ref_code provided.
- */
-function trackRegistration(userId, userEmail, refCode) {
+// Fire affiliate postback
+async function firePostback(affId, event, data) {
+  try {
+    const { queryOne: qOne } = require('./pgdb');
+    const aff = (typeof affId === 'object') ? affId
+      : await qOne('SELECT postback_url, ref_code FROM affiliates WHERE id = $1', [affId]);
+    if (!aff || !aff.postback_url) return;
+    let pbUrl = aff.postback_url
+      .replace(/\{event\}/g, encodeURIComponent(event))
+      .replace(/\{ref_code\}/g, encodeURIComponent(aff.ref_code || ''))
+      .replace(/\{click_id\}/g, encodeURIComponent(data.click_id || ''))
+      .replace(/\{amount\}/g, encodeURIComponent(String(data.amount || 0)))
+      .replace(/\{player_id\}/g, encodeURIComponent(data.player_id || ''))
+      .replace(/\{sub1\}/g, encodeURIComponent(data.sub1 || ''))
+      .replace(/\{sub2\}/g, encodeURIComponent(data.sub2 || ''))
+      .replace(/\{sub3\}/g, encodeURIComponent(data.sub3 || ''));
+    if (!pbUrl.includes('event=')) pbUrl += (pbUrl.includes('?') ? '&' : '?') + 'event=' + encodeURIComponent(event);
+    const parsed = new url_m.URL(pbUrl);
+    const lib = parsed.protocol === 'https:' ? https_m : http_m;
+    const options = {
+      hostname: parsed.hostname,
+      port: parsed.port || (parsed.protocol === 'https:' ? 443 : 80),
+      path: parsed.pathname + parsed.search,
+      method: 'GET', timeout: 5000,
+      headers: { 'User-Agent': 'Cryptora-Affiliate/1.0' },
+    };
+    await new Promise(function(resolve) {
+      const req = lib.request(options, function(res) {
+        console.log('[affiliate/postback]', event, '->', res.statusCode);
+        resolve();
+      });
+      req.on('error', function(e) { console.warn('[affiliate/postback] err:', e.message); resolve(); });
+      req.on('timeout', function() { req.destroy(); resolve(); });
+      req.end();
+    });
+  } catch(e) { console.warn('[affiliate/postback]', e.message); }
+}
+module.exports.firePostback = firePostback;
+
+
+
+async function trackRegistration(userId, userEmail, refCode) {
   if (!refCode) return;
   try {
-    const aff = db.prepare("SELECT * FROM affiliates WHERE ref_code = ? AND status = 'active'").get(refCode);
+    const aff = await queryOne("SELECT * FROM affiliates WHERE ref_code=$1 AND status='active'", [refCode]);
+    if (!aff || aff.user_id === userId) return;
+    await query('UPDATE users SET referred_by=$1 WHERE id=$2', [aff.id, userId]);
+    // Check if already linked
+    const existing = await queryOne('SELECT id FROM affiliate_referrals WHERE affiliate_id=$1 AND referred_user_id=$2', [aff.id, userId]);
+    if (!existing) {
+      await query(`INSERT INTO affiliate_referrals (id,affiliate_id,referred_user_id,referred_user_email,status)
+        VALUES ($1,$2,$3,$4,'registered')`, [uuidv4(), aff.id, userId, userEmail]);
+      // Fire registration postback
+      firePostback(aff.id, 'registration', { player_id: userId, amount: 0 }).catch(function(){});
+    }
+  } catch(e) { console.error('[affiliate trackRegistration]', e.message); }
+}
+
+async function trackFirstDeposit(userId, userEmail, amountUsd) {
+  try {
+    const user = await queryOne('SELECT referred_by FROM users WHERE id=$1', [userId]);
+    if (!user?.referred_by) return;
+    const ref = await queryOne('SELECT * FROM affiliate_referrals WHERE affiliate_id=$1 AND referred_user_id=$2', [user.referred_by, userId]);
+    if (!ref || ref.cpa_paid) return;
+    const aff = await queryOne('SELECT * FROM affiliates WHERE id=$1', [user.referred_by]);
     if (!aff) return;
-    // Don't let affiliate refer themselves
-    if (aff.user_id === userId) return;
 
-    db.prepare('UPDATE users SET referred_by = ? WHERE id = ?').run(aff.id, userId);
-    db.prepare(`INSERT OR IGNORE INTO affiliate_referrals
-      (id, affiliate_id, referred_user_id, referred_user_email)
-      VALUES (?, ?, ?, ?)`)
-      .run(uuidv4(), aff.id, userId, userEmail);
+    await query(`UPDATE affiliate_referrals SET status='deposited', first_deposit_amount=$1, first_deposit_date=NOW()
+      WHERE affiliate_id=$2 AND referred_user_id=$3`, [amountUsd, aff.id, userId]);
+    // Fire FTD postback
+    firePostback(aff.id, 'ftd', { player_id: userId, amount: amountUsd }).catch(function(){});
 
-    console.log(`[affiliate] User ${userEmail} registered via ref ${refCode} → aff ${aff.id}`);
-  } catch (e) {
-    console.error('[affiliate] trackRegistration error:', e.message);
-  }
-}
-
-/**
- * Called when a deposit is credited.
- * Awards CPA if first deposit for this referral.
- */
-function trackDeposit(userId, depositAmountUsd) {
-  try {
-    const user = db.prepare('SELECT referred_by FROM users WHERE id = ?').get(userId);
-    if (!user || !user.referred_by) return;
-
-    const ref = db.prepare('SELECT * FROM affiliate_referrals WHERE affiliate_id = ? AND referred_user_id = ?')
-      .get(user.referred_by, userId);
-    if (!ref) return;
-
-    const aff = db.prepare('SELECT * FROM affiliates WHERE id = ?').get(user.referred_by);
-    if (!aff || aff.status !== 'active') return;
-
-    // Update referral status
-    if (ref.status === 'registered') {
-      db.prepare(`UPDATE affiliate_referrals SET status = 'deposited',
-        first_deposit_amount = ?, first_deposit_date = datetime('now')
-        WHERE affiliate_id = ? AND referred_user_id = ?`)
-        .run(depositAmountUsd, aff.id, userId);
+    if (aff.commission_type === 'cpa' || aff.commission_type === 'hybrid') {
+      const cpaAmount = parseFloat(aff.cpa_amount || 20);
+      await query('UPDATE affiliates SET total_earned=total_earned+$1 WHERE id=$2', [cpaAmount, aff.id]);
+      await query('UPDATE users SET affiliate_balance=affiliate_balance+$1 WHERE id=$2', [cpaAmount, aff.user_id]);
+      await query('UPDATE affiliate_referrals SET cpa_paid=true WHERE affiliate_id=$1 AND referred_user_id=$2', [aff.id, userId]);
     }
+  } catch(e) { console.error('[affiliate trackFirstDeposit]', e.message); }
+}
 
-    // CPA — only on first deposit, only if commission_type is cpa or hybrid
-    if (!ref.cpa_paid && (aff.commission_type === 'cpa' || aff.commission_type === 'hybrid')) {
-      const minDeposit = 10; // min $10 to qualify for CPA
-      if (depositAmountUsd >= minDeposit) {
-        const cpaAmount = aff.cpa_amount;
-        db.prepare('UPDATE affiliates SET total_earned = total_earned + ? WHERE id = ?').run(cpaAmount, aff.id);
-        db.prepare('UPDATE users SET affiliate_balance = affiliate_balance + ? WHERE id = ?').run(cpaAmount, aff.user_id);
-        db.prepare('UPDATE affiliate_referrals SET cpa_paid = 1 WHERE affiliate_id = ? AND referred_user_id = ?')
-          .run(aff.id, userId);
-        db.prepare(`INSERT INTO affiliate_earnings (id, affiliate_id, referred_user_id, type, amount, description)
-          VALUES (?, ?, ?, 'cpa', ?, ?)`)
-          .run(uuidv4(), aff.id, userId, cpaAmount, `CPA for ${ref.referred_user_email} first deposit $${depositAmountUsd.toFixed(2)}`);
+async function trackWager(userId, userEmail, betAmount, winAmount) {
+  try {
+    const user = await queryOne('SELECT referred_by FROM users WHERE id=$1', [userId]);
+    if (!user?.referred_by) return;
+    const aff = await queryOne('SELECT * FROM affiliates WHERE id=$1', [user.referred_by]);
+    if (!aff) return;
 
-        console.log(`[affiliate] CPA $${cpaAmount} → aff ${aff.id} for user ${userId}`);
-        sendPostback(aff, 'cpa', cpaAmount, userId);
-      }
+    const ggr = betAmount - winAmount;
+    await query(`UPDATE affiliate_referrals SET total_wagered=total_wagered+$1, total_ggr=total_ggr+$2
+      WHERE affiliate_id=$3 AND referred_user_id=$4`, [betAmount, ggr, aff.id, userId]);
+
+    if ((aff.commission_type === 'revshare' || aff.commission_type === 'hybrid') && ggr > 0) {
+      const revshare = ggr * parseFloat(aff.revshare_percent || 25) / 100;
+      await query('UPDATE affiliates SET total_earned=total_earned+$1 WHERE id=$2', [revshare, aff.id]);
+      await query('UPDATE users SET affiliate_balance=affiliate_balance+$1 WHERE id=$2', [revshare, aff.user_id]);
     }
-  } catch (e) {
-    console.error('[affiliate] trackDeposit error:', e.message);
-  }
+  } catch(e) { console.error('[affiliate trackWager]', e.message); }
 }
 
-/**
- * Called after each wager (debit) in walletApi.
- * Awards RevShare % of GGR (approximated as house edge on wager).
- * GGR approximation: 3% of wager amount (average house edge)
- */
-function trackWager(userId, wagerAmount, winAmount = 0) {
-  try {
-    const user = db.prepare('SELECT referred_by FROM users WHERE id = ?').get(userId);
-    if (!user || !user.referred_by) return;
-
-    const aff = db.prepare('SELECT * FROM affiliates WHERE id = ?').get(user.referred_by);
-    if (!aff || aff.status !== 'active') return;
-    if (aff.commission_type !== 'revshare' && aff.commission_type !== 'hybrid') return;
-
-    // GGR approximation: 3% house edge (slot avg RTP = 97%)
-    const HOUSE_EDGE = 0.03;
-    const ggr = wagerAmount * HOUSE_EDGE;
-    if (ggr <= 0) return;
-
-    const revshareAmount = parseFloat((ggr * aff.revshare_percent / 100).toFixed(5));
-    if (revshareAmount < 0.001) return; // too small
-
-    db.prepare('UPDATE affiliates SET total_earned = total_earned + ? WHERE id = ?').run(revshareAmount, aff.id);
-    db.prepare('UPDATE users SET affiliate_balance = affiliate_balance + ? WHERE id = ?').run(revshareAmount, aff.user_id);
-    db.prepare(`UPDATE affiliate_referrals SET total_wagered = total_wagered + ?, total_ggr = total_ggr + ?
-      WHERE affiliate_id = ? AND referred_user_id = ?`)
-      .run(wagerAmount, ggr, aff.id, userId);
-    db.prepare(`INSERT INTO affiliate_earnings (id, affiliate_id, referred_user_id, type, amount, description)
-      VALUES (?, ?, ?, 'revshare', ?, ?)`)
-      .run(uuidv4(), aff.id, userId, revshareAmount,
-        `RevShare ${aff.revshare_percent}% of GGR $${ggr.toFixed(3)} (wager $${wagerAmount})`);
-  } catch (e) {
-    console.error('[affiliate] trackWager error:', e.message);
-  }
-}
-
-/**
- * Fire postback to affiliate's URL (non-blocking)
- */
-function sendPostback(aff, type, amount, userId) {
-  if (!aff.postback_url) return;
-  try {
-    const url = new URL(aff.postback_url);
-    url.searchParams.set('type', type);
-    url.searchParams.set('amount', amount);
-    url.searchParams.set('aff_id', aff.id);
-    url.searchParams.set('user_id', userId);
-    url.searchParams.set('ts', Math.floor(Date.now() / 1000));
-    fetch(url.toString()).catch(() => {});
-    console.log(`[affiliate] Postback fired: ${url.toString()}`);
-  } catch (e) {
-    console.error('[affiliate] postback error:', e.message);
-  }
-}
-
-module.exports = { trackRegistration, trackDeposit, trackWager };
+module.exports = { trackRegistration, trackFirstDeposit, trackWager };

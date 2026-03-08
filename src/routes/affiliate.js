@@ -704,3 +704,48 @@ module.exports = router;
 module.exports.trackRegistration = trackRegistration;
 module.exports.betSettled = betSettled;
 
+
+// ── Postback management ───────────────────────────────────────────────────────
+
+// PUT /api/affiliate/postback — set postback URL for current affiliate
+router.put('/postback', affAuth, async (req, res) => {
+  try {
+    const { postback_url } = req.body;
+    // Basic validation: if provided, must be a valid URL
+    if (postback_url && postback_url.trim()) {
+      try { new URL(postback_url.trim()); } catch(e) {
+        return res.status(400).json({ error: 'Invalid URL format' });
+      }
+    }
+    const aff = await queryOne('SELECT id FROM affiliates WHERE account_id = $1', [req.affAccount.id]);
+    if (!aff) return res.status(404).json({ error: 'Not an affiliate' });
+
+    await query('UPDATE affiliates SET postback_url = $1 WHERE id = $2',
+      [postback_url ? postback_url.trim() : null, aff.id]);
+    res.json({ success: true, message: 'Postback URL updated' });
+  } catch(e) {
+    console.error('[affiliate/postback set]', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/affiliate/postback/test — send a test postback
+router.post('/postback/test', affAuth, async (req, res) => {
+  try {
+    const aff = await queryOne('SELECT * FROM affiliates WHERE account_id = $1', [req.affAccount.id]);
+    if (!aff) return res.status(404).json({ error: 'Not an affiliate' });
+    if (!aff.postback_url) return res.status(400).json({ error: 'No postback URL set' });
+
+    const { firePostback } = require('../affiliate');
+    await firePostback(aff, 'test', {
+      player_id: 'TEST_PLAYER',
+      click_id: 'TEST_CLICK',
+      amount: 50,
+      sub1: 'test',
+    });
+    res.json({ success: true, message: 'Test postback fired to: ' + aff.postback_url });
+  } catch(e) {
+    console.error('[affiliate/postback test]', e.message);
+    res.status(500).json({ error: 'Server error: ' + e.message });
+  }
+});

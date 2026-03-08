@@ -97,6 +97,21 @@ router.post('/withdraw', authenticate, async (req, res) => {
   const rgExclusion = await checkSelfExclusion(req.user.id);
   if (rgExclusion.blocked) return res.status(403).json({ error: rgExclusion.reason });
 
+  // 2FA: Check TOTP if enabled
+  const twoFaUser = await queryOne('SELECT totp_enabled, totp_secret FROM users WHERE id = ', [req.user.id]);
+  if (twoFaUser && twoFaUser.totp_enabled) {
+    const { totp_code } = req.body;
+    if (!totp_code) return res.status(400).json({ error: '2FA code required', requires2fa: true });
+    const speakeasy2 = require('speakeasy');
+    const valid2fa = speakeasy2.totp.verify({
+      secret: twoFaUser.totp_secret,
+      encoding: 'base32',
+      token: String(totp_code).replace(/\s/g, ''),
+      window: 2,
+    });
+    if (!valid2fa) return res.status(401).json({ error: 'Invalid 2FA code', requires2fa: true });
+  }
+
   // FIX: Atomic balance check + deduction with FOR UPDATE (prevents double-spend race condition)
   const withdrawalId = uuidv4();
   try {
@@ -194,7 +209,7 @@ router.get('/admin/withdrawals/pending', authenticate, async (req, res) => {
 
 // ── Admin: approve/reject withdrawal ─────────────────────────────────────────
 
-router.post('/admin/withdrawals/:id/approve', authenticate, async (req, res) => {
+router.post('/withdraw', authenticate, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
   const w = await queryOne('SELECT * FROM crypto_withdrawals WHERE id = $1', [req.params.id]);
   if (!w || w.status !== 'pending') return res.status(400).json({ error: 'Not found or not pending' });
@@ -211,7 +226,7 @@ router.post('/admin/withdrawals/:id/approve', authenticate, async (req, res) => 
   res.json({ success: true, message: 'Processing withdrawal' });
 });
 
-router.post('/admin/withdrawals/:id/reject', authenticate, async (req, res) => {
+router.post('/withdraw', authenticate, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
   const w = await queryOne('SELECT * FROM crypto_withdrawals WHERE id = $1', [req.params.id]);
   if (!w || w.status !== 'pending') return res.status(400).json({ error: 'Not found or not pending' });
@@ -652,3 +667,106 @@ router.get('/admin/user-wallets/:userId', authenticate, async (req, res) => {
 });
 
 module.exports = router;
+
+// ── 2FA for Withdrawals (TOTP) ─────────────────────────────────────────────────
+
+const speakeasy = require('speakeasy');
+const QRCode = require('qrcode');
+
+// Ensure totp_secret column exists
+(async () => {
+  try {
+    await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret TEXT`);
+    await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN DEFAULT FALSE`);
+    console.log('[2FA] DB columns ready');
+  } catch (e) {
+    console.warn('[2FA] Migration warning:', e.message);
+  }
+})();
+
+// POST /api/crypto/2fa/setup — generate secret, return QR
+router.post('/2fa/setup', authenticate, async (req, res) => {
+  try {
+    const secret = speakeasy.generateSecret({
+      name: `Cryptora (${req.user.email})`,
+      issuer: 'Cryptora Casino',
+      length: 32,
+    });
+
+    // Save temp secret (not enabled yet)
+    await query('UPDATE users SET totp_secret = $1 WHERE id = $2', [secret.base32, req.user.id]);
+
+    const qrUrl = await QRCode.toDataURL(secret.otpauth_url);
+    res.json({
+      success: true,
+      secret: secret.base32,
+      qrCode: qrUrl,
+      manualEntry: secret.base32,
+    });
+  } catch (e) {
+    console.error('[2FA setup]', e.message);
+    res.status(500).json({ error: 'Failed to setup 2FA' });
+  }
+});
+
+// POST /api/crypto/2fa/confirm — verify code and activate 2FA
+router.post('/2fa/confirm', authenticate, async (req, res) => {
+  const { code } = req.body;
+  if (!code) return res.status(400).json({ error: 'TOTP code required' });
+
+  try {
+    const user = await queryOne('SELECT totp_secret FROM users WHERE id = $1', [req.user.id]);
+    if (!user || !user.totp_secret) return res.status(400).json({ error: 'No 2FA setup in progress. Call /2fa/setup first.' });
+
+    const valid = speakeasy.totp.verify({
+      secret: user.totp_secret,
+      encoding: 'base32',
+      token: String(code).replace(/\s/g, ''),
+      window: 2,
+    });
+
+    if (!valid) return res.status(400).json({ error: 'Invalid TOTP code. Try again.' });
+
+    await query('UPDATE users SET totp_enabled = TRUE WHERE id = $1', [req.user.id]);
+    res.json({ success: true, message: '2FA enabled for withdrawals' });
+  } catch (e) {
+    console.error('[2FA confirm]', e.message);
+    res.status(500).json({ error: 'Failed to confirm 2FA' });
+  }
+});
+
+// POST /api/crypto/2fa/disable — disable 2FA (requires current code)
+router.post('/2fa/disable', authenticate, async (req, res) => {
+  const { code } = req.body;
+  if (!code) return res.status(400).json({ error: 'TOTP code required to disable 2FA' });
+
+  try {
+    const user = await queryOne('SELECT totp_secret, totp_enabled FROM users WHERE id = $1', [req.user.id]);
+    if (!user || !user.totp_enabled) return res.status(400).json({ error: '2FA is not enabled' });
+
+    const valid = speakeasy.totp.verify({
+      secret: user.totp_secret,
+      encoding: 'base32',
+      token: String(code).replace(/\s/g, ''),
+      window: 2,
+    });
+
+    if (!valid) return res.status(400).json({ error: 'Invalid TOTP code' });
+
+    await query('UPDATE users SET totp_enabled = FALSE, totp_secret = NULL WHERE id = $1', [req.user.id]);
+    res.json({ success: true, message: '2FA disabled' });
+  } catch (e) {
+    console.error('[2FA disable]', e.message);
+    res.status(500).json({ error: 'Failed to disable 2FA' });
+  }
+});
+
+// GET /api/crypto/2fa/status — check if 2FA is enabled for current user
+router.get('/2fa/status', authenticate, async (req, res) => {
+  try {
+    const user = await queryOne('SELECT totp_enabled FROM users WHERE id = $1', [req.user.id]);
+    res.json({ enabled: !!(user && user.totp_enabled) });
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to get 2FA status' });
+  }
+});

@@ -21,7 +21,7 @@ const CHAINS = {
     decimals: 18,
     confirmations: 12,
     derivationPath: "m/44'/60'/0'/0",
-    rpc: 'https://rpc.ankr.com/eth',
+    rpc: 'https://ethereum.publicnode.com',
     tokens: ['ETH', 'USDT', 'USDC'],
     tokenContracts: {
       USDT: '0xdAC17F958D2ee523a2206206994597C13D831ec7',
@@ -37,7 +37,7 @@ const CHAINS = {
     decimals: 18,
     confirmations: 15,
     derivationPath: "m/44'/60'/0'/0",
-    rpc: 'https://bsc-dataseed1.binance.org/',
+    rpc: 'https://bsc-rpc.publicnode.com',
     tokens: ['BNB', 'USDT', 'USDC'],
     tokenContracts: {
       USDT: '0x55d398326f99059fF775485246999027B3197955',
@@ -53,7 +53,7 @@ const CHAINS = {
     decimals: 18,
     confirmations: 20,
     derivationPath: "m/44'/60'/0'/0",
-    rpc: 'https://rpc.ankr.com/polygon',
+    rpc: 'https://polygon-bor-rpc.publicnode.com',
     tokens: ['MATIC', 'USDT', 'USDC'],
     tokenContracts: {
       USDT: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F',
@@ -69,7 +69,7 @@ const CHAINS = {
     decimals: 18,
     confirmations: 20,
     derivationPath: "m/44'/60'/0'/0",
-    rpc: 'https://rpc.ankr.com/arbitrum',
+    rpc: 'https://arbitrum-one-rpc.publicnode.com',
     tokens: ['ETH', 'USDC', 'USDT'],
     tokenContracts: {
       USDT: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9',

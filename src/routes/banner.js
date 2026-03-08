@@ -67,7 +67,7 @@ router.post('/admin', authMiddleware, adminOnly, async (req, res) => {
     if (!title || !subtitle) return res.status(400).json({ error: 'title and subtitle required' });
 
     const maxRow = await queryOne('SELECT MAX(position) as m FROM banner_slides');
-    const pos = position ?? ((parseInt(maxRow.m) ?? -1) + 1);
+    const pos = position !== undefined ? parseInt(position) : (parseInt(maxRow?.m ?? -1) + 1);
     const id = uuidv4();
 
     await query(`

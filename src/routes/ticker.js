@@ -52,24 +52,37 @@ router.get('/', async (req, res) => {
     let wins = [];
     try {
       const { ch } = require('../chdb');
+      // Build slug→title map from PG games table
+      const { queryAll } = require('../pgdb');
+      const games = await queryAll('SELECT title FROM games WHERE title IS NOT NULL');
+      const slugMap = {};
+      for (const g of games) {
+        const slug = g.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+        slugMap[slug] = g.title;
+      }
+
       const result = await ch.query({
         query: `
-          SELECT player_name, game_name, win_amount, bet_amount,
-                 round(win_amount / bet_amount, 0) AS multiplier
+          SELECT user_email, game_title, win_amount, bet_amount,
+                 round(win_amount / bet_amount, 1) AS multiplier
           FROM casino.bets
-          WHERE win_amount > 0 AND win_amount / bet_amount >= 50
-          ORDER BY created_at DESC
-          LIMIT 20
+          WHERE win_amount >= 0.5
+          ORDER BY win_amount DESC
+          LIMIT 30
         `,
         format: 'JSONEachRow',
       });
       const rows = await result.json();
-      wins = rows.map(r => ({
-        player: maskPlayer(r.player_name),
-        game: r.game_name,
-        amount: parseFloat(r.win_amount),
-        multiplier: parseInt(r.multiplier),
-      }));
+      wins = rows.map(r => {
+        const slug = (r.game_title||'').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const readableGame = slugMap[slug] || r.game_title.replace(/_/g, ' ').replace(/\w/g, c => c.toUpperCase());
+        return {
+          player: maskPlayer(r.user_email),
+          game: readableGame,
+          amount: parseFloat(r.win_amount),
+          multiplier: parseFloat(r.multiplier),
+        };
+      });
     } catch {}
 
     // Fall back to fake wins if no real ones
@@ -137,7 +150,9 @@ function requireAdmin(req, res, next) {
 
 function maskPlayer(name) {
   if (!name) return 'Anon***';
-  const visible = name.slice(0, Math.min(4, name.length));
+  // For emails, use the part before @
+  const base = name.includes('@') ? name.split('@')[0] : name;
+  const visible = base.slice(0, Math.min(3, base.length));
   return visible + '***';
 }
 

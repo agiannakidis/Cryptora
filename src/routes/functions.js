@@ -22,6 +22,11 @@ async function saveSession(userId, userEmail, gameName, gameTitle, provider, ses
 }
 
 // ─── POST /api/functions/launchGame ─────────────────────────────────────────
+function isMobileUA(req) {
+  const ua = (req.headers['user-agent'] || '').toLowerCase();
+  return /mobile|android|iphone|ipad|ipod|blackberry|windows phone/.test(ua);
+}
+
 router.post('/launchGame', authMiddleware, async (req, res) => {
   try {
     const { gameId, demo = false } = req.body;
@@ -45,6 +50,7 @@ router.post('/launchGame', authMiddleware, async (req, res) => {
     const gameName  = game?.game_id || gameId;
     const mode      = demo ? 'demo' : 'external';
 
+    const closeUrl = isMobileUA(req) ? 'https://cryptora.live/' : '';
     let launchUrl = null;
     let fullUrl = '';
     let responseStatus = 0;
@@ -58,26 +64,83 @@ router.post('/launchGame', authMiddleware, async (req, res) => {
       const params = new URLSearchParams({
         gameName, operatorId, sessionId,
         userName: username, mode, currency,
-        device: 'desktop', closeUrl: '',
+        device: 'desktop', closeUrl,
       });
       launchUrl = `${launcherBase}?${params.toString()}`;
       fullUrl = launchUrl;
       responseStatus = 200;
       responseBody = 'Yggdrasil URL constructed directly';
 
-    // ── NetGame ────────────────────────────────────────────────────────────
-    } else if (providerName === 'NetGame' || providerName === 'Novomatic') {
-      const launcherDefault = providerName === 'Novomatic' ? 'https://gs2.grandx.pro/novomatic-admin/launcher.html' : 'https://gs2.grandx.pro/netgame-admin/launcher.html';
-      const launcherBase = providerRow?.api_base_url || launcherDefault;
+    // ── NetGame / Novomatic ───────────────────────────────────────────────
+    } else if (['NetGame', 'Novomatic'].includes(providerName)) {
+      const launcherMap = {
+        Novomatic: 'https://gs2.grandx.pro/novomatic-admin/launcher.html',
+        NetGame:   'https://gs2.grandx.pro/netgame-admin/launcher.html',
+      };
+      const launcherBase = providerRow?.api_base_url || launcherMap[providerName];
       const params = new URLSearchParams({
         gameName, operatorId, sessionId,
-        userName: username, mode,
-        closeUrl: '',
+        userName: username, mode, currency: 'USD',
+        closeUrl,
       });
       launchUrl = `${launcherBase}?${params.toString()}`;
       fullUrl = launchUrl;
       responseStatus = 200;
-      responseBody = 'NetGame URL constructed directly';
+      responseBody = providerName + ' URL constructed directly';
+
+    // ── Amatic ────────────────────────────────────────────────────────────
+    } else if (providerName === 'Amatic') {
+      const launcherBase = providerRow?.api_base_url || 'https://gs2.grandx.pro/amatic-admin/launcher/opengame.html';
+      const amaticOpId = operatorId;
+      const params = new URLSearchParams({
+        gameName, operatorId: amaticOpId, sessionId,
+        playerName: username, mode, currency: 'EUR',
+        closeUrl,
+      });
+      launchUrl = `${launcherBase}?${params.toString()}`;
+      fullUrl = launchUrl;
+      responseStatus = 200;
+      responseBody = 'Amatic URL constructed directly';
+
+    // ── Crash Games (Zeppelin etc via solutions-admin) ─────────────────
+    } else if (providerName === 'Crash Games') {
+      const crashBase = providerRow?.api_base_url || 'https://gs2.grandx.pro/solutions-admin/launcher.html';
+      const params = new URLSearchParams({
+        gameName, operatorId, sessionId,
+        userName: username, mode, closeUrl,
+      });
+      launchUrl = `${crashBase}?${params.toString()}`;
+      fullUrl = launchUrl;
+      responseStatus = 200;
+      responseBody = 'Crash game URL constructed';
+
+    // ── Play'n GO (numeric gameId via GrandX) ───────────────────────────
+    } else if (providerName === "Play'n GO") {
+      const pngUrl = process.env.PRAGMATIC_API_URL ||
+        'https://gs2.grandx.pro/euro-extern/dispatcher/egame/openGame/v2';
+      const pngGameId = game?.provider_game_id || gameName;
+      signatureInput = `${privateKey}operatorId=${operatorId}&username=${username}&sessionId=${sessionId}&gameId=${pngGameId}`;
+      accessPassword = md5(signatureInput);
+      const params = new URLSearchParams({ accessPassword, operatorId, username, sessionId, gameId: pngGameId });
+      fullUrl = `${pngUrl}?${params.toString()}`;
+
+      try {
+        const response = await fetch(fullUrl, { method: 'POST' });
+        responseStatus = response.status;
+        const text = await response.text();
+        responseBody = text;
+        const trimmed = text.trim();
+        if (trimmed.startsWith('http')) {
+          launchUrl = trimmed;
+        } else {
+          try {
+            const json = JSON.parse(trimmed);
+            launchUrl = json?.gameURL || json?.url || json?.game?.url || json?.gameUrl || json?.launch_url || null;
+          } catch {}
+        }
+      } catch (fetchErr) {
+        responseBody = fetchErr.message;
+      }
 
     // ── Pragmatic Play ─────────────────────────────────────────────────────
     } else {
@@ -134,7 +197,7 @@ router.post('/launchNetGame', authMiddleware, async (req, res) => {
 
     const params = new URLSearchParams({
       gameName, operatorId, sessionId,
-      userName, mode, closeUrl: '',
+      userName, mode, closeUrl: isMobileUA(req) ? 'https://cryptora.live/' : '',
     });
     const launchUrl = `https://gs2.grandx.pro/netgame-admin/launcher.html?${params.toString()}`;
 
@@ -156,7 +219,7 @@ router.post('/getNetGameUrl', authMiddleware, async (req, res) => {
 
     const params = new URLSearchParams({
       gameName, operatorId, sessionId,
-      userName: req.user.email, mode, closeUrl: '',
+      userName: req.user.email, mode, closeUrl: isMobileUA(req) ? 'https://cryptora.live/' : '',
     });
     const launchUrl = `https://gs2.grandx.pro/netgame-admin/launcher.html?${params.toString()}`;
     res.json({ launchUrl, sessionId });

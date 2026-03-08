@@ -29,6 +29,8 @@
     "node-fetch": "^3.3.2",
     "nodemailer": "^8.0.1",
     "pg": "^8.19.0",
+    "qrcode": "^1.5.4",
+    "speakeasy": "^2.0.0",
     "stripe": "^14.10.0",
     "tiny-secp256k1": "^2.2.4",
     "tronweb": "^6.2.0",
