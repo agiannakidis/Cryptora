@@ -52,6 +52,14 @@ app.use(cors({
 }));
 
 app.use(express.json());
+
+// GEO-blocking middleware
+const geoBlock = require('./geo-block');
+app.use('/api', geoBlock({
+  countries: ['US', 'GB', 'AU', 'FR', 'DE', 'NL', 'IT', 'ES', 'BE', 'PL', 'HU', 'RO', 'CZ'],
+  bypassPaths: ['/api/auth/login', '/api/auth/register', '/api/auth/telegram', '/health', '/api/health'],
+}));
+
 app.set("trust proxy", 1); // Trust Nginx / Cloudflare
 app.use(express.urlencoded({ extended: true }));
 
