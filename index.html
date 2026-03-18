@@ -1,6 +1,29 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <!--
+  ═══════════════════════════════════════════════════════════════════
+  CRYPTORA FRONTEND SCRIPT ARCHITECTURE
+  ═══════════════════════════════════════════════════════════════════
+  
+  This page loads the compiled React SPA bundle plus behavioral patches.
+  
+  LOAD ORDER (intentional):
+  1. CSS: design-system.css → mobile-fix.css
+  2. EARLY (before React): affiliate-tracker.js, tg-ref-patch.js, jackpot-guard.js
+  3. DEFERRED PUBLIC: category-rows, game-card-placeholder, wallet-tx-filter,
+     profile-page, jackpot-bar/win, live-chat, ui-p0-fixes, ui-polish,
+     mobile-fix, mobile-game-launch, balance-refresh, deposit-rate-info,
+     tx-colors, analytics-tracker, crypto-capability
+  4. ADMIN ONLY (via admin-entry.js): all admin-*.js scripts
+  
+  WHY PATCHES EXIST:
+  The React bundle is compiled and cannot be rebuilt. These scripts
+  extend functionality without modifying the bundle.
+  
+  TO REDUCE PATCHES: rebuild the React app with proper components.
+  ═══════════════════════════════════════════════════════════════════
+-->
     <!-- ── Early: Affiliate tracking (must be first to capture referral params) ── -->
     <script src="/affiliate-tracker.js?v=1"></script>
 
