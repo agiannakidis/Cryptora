@@ -166,6 +166,23 @@ pm2 restart casino-backend
 
 Private — all rights reserved.
 
+
+## Database Schema Files
+
+The repository now includes exported database schemas for reproducible setup:
+
+**PostgreSQL** — `schema.sql` (1800+ lines, all tables/indexes/constraints):
+```bash
+PGPASSWORD=your_password psql -U casino -d casino_db -h localhost -f schema.sql
+```
+
+**ClickHouse** — `schema_clickhouse.sql` (analytics tables):
+```bash
+clickhouse-client --password your_password --database casino < schema_clickhouse.sql
+```
+
+Both files are kept up to date with the live production schema.
+
 ## Known Limitations and Disabled Features
 
 | Feature | Status | Notes |
