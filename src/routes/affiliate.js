@@ -842,6 +842,120 @@ router.post('/auth/change-password', async (req, res) => {
     res.json({ success: true, message: 'Password updated' });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
+
+// GET /api/affiliate/notifications — recent account events
+router.get("/notifications", affAuth, async (req, res) => {
+  try {
+    const aff = await findAffiliate(req.affAccount);
+    if (!aff) return res.status(404).json({ error: "Not an affiliate" });
+    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+    const notifications = [];
+    const recentComm = await queryAll(
+      `SELECT id, amount, status, period_start, period_end, created_at FROM affiliate_commissions WHERE affiliate_id=$1 ORDER BY created_at DESC LIMIT 5`, [aff.id]
+    );
+    for (const c of recentComm) {
+      notifications.push({
+        id: "comm_" + c.id,
+        type: c.status === "paid" ? "commission_paid" : c.status === "approved" ? "commission_approved" : "commission_pending",
+        title: c.status === "paid" ? "Commission Paid" : c.status === "approved" ? "Commission Approved" : "Commission Pending",
+        message: `$${parseFloat(c.amount || 0).toFixed(2)} for period ${c.period_start || ""} – ${c.period_end || ""}`,
+        read: false,
+        created_at: c.created_at,
+      });
+    }
+    const recentFTD = await queryAll(
+      `SELECT referred_user_id, first_deposit_at, first_deposit_amount, created_date FROM affiliate_referrals WHERE affiliate_id=$1 AND first_deposit_at IS NOT NULL ORDER BY first_deposit_at DESC LIMIT 3`, [aff.id]
+    );
+    for (const r of recentFTD) {
+      notifications.push({
+        id: "ftd_" + r.referred_user_id,
+        type: "new_ftd",
+        title: "New First Deposit",
+        message: `A referred player made their first deposit of $${parseFloat(r.first_deposit_amount || 0).toFixed(2)}`,
+        read: false,
+        created_at: r.first_deposit_at,
+      });
+    }
+    notifications.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    res.json({ notifications: notifications.slice(0, limit), total: notifications.length });
+  } catch(e) {
+    console.error("[affiliate/notifications]", e.message);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// GET /api/affiliate/players — detailed player list for this affiliate
+router.get("/players", affAuth, async (req, res) => {
+  try {
+    const aff = await findAffiliate(req.affAccount);
+    if (!aff) return res.status(404).json({ error: "Not an affiliate" });
+    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+    const offset = parseInt(req.query.offset) || 0;
+    const search = req.query.search || "";
+    let whereExtra = "";
+    const params = [aff.id, limit, offset];
+    if (search) {
+      params.push("%" + search + "%");
+      whereExtra = ` AND ar.referred_user_email ILIKE $${params.length}`;
+    }
+    const rows = await queryAll(
+      `SELECT ar.referred_user_id, ar.referred_user_email, ar.status, ar.first_deposit_amount, ar.first_deposit_at, ar.created_date, ar.sub1, ar.sub2, u.balance, u.created_date as user_created FROM affiliate_referrals ar LEFT JOIN users u ON u.id::text = ar.referred_user_id::text WHERE ar.affiliate_id = $1 ${whereExtra} ORDER BY ar.created_date DESC LIMIT $2 OFFSET $3`, params
+    );
+    const countRow = await queryOne(`SELECT COUNT(*) as cnt FROM affiliate_referrals WHERE affiliate_id=$1`, [aff.id]);
+    res.json({
+      players: rows.map(r => ({
+        id: r.referred_user_id,
+        email: r.referred_user_email ? r.referred_user_email.replace(/(.{2}).*@/, "$1***@") : "—",
+        status: r.status,
+        registered_at: r.created_date,
+        first_deposit_at: r.first_deposit_at,
+        first_deposit_amount: parseFloat(r.first_deposit_amount || 0),
+        sub1: r.sub1,
+        sub2: r.sub2,
+        balance: parseFloat(r.balance || 0),
+      })),
+      total: parseInt(countRow?.cnt || 0),
+      limit,
+      offset,
+    });
+  } catch(e) {
+    console.error("[affiliate/players]", e.message);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// GET /api/affiliate/audit-log — security activity log
+router.get("/audit-log", affAuth, async (req, res) => {
+  try {
+    try {
+      const rows = await queryAll(`SELECT action, ip_address, created_at FROM affiliate_audit_log WHERE account_id=$1 ORDER BY created_at DESC LIMIT 50`, [req.affAccount.id]);
+      res.json({ events: rows });
+    } catch(tableErr) {
+      res.json({ events: [], note: "Audit log table not yet initialized" });
+    }
+  } catch(e) {
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// POST /api/affiliate/auth/logout — invalidate session
+router.post("/auth/logout", affAuth, async (req, res) => {
+  try {
+    const header = req.headers["authorization"] || "";
+    const token = header.startsWith("Bearer ") ? header.slice(7) : null;
+    if (token) {
+      const crypto = require("crypto");
+      const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+      try {
+        await query("INSERT INTO invalidated_tokens (token_hash, invalidated_at, expires_at) VALUES ($1, NOW(), NOW() + INTERVAL \30 days\) ON CONFLICT DO NOTHING", [tokenHash]);
+      } catch(e) { console.warn("[aff logout] blacklist failed:", e.message); }
+    }
+    res.json({ ok: true, message: "Logged out successfully" });
+  } catch(e) {
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 module.exports = router;
 module.exports.trackRegistration = trackRegistration;
 module.exports.betSettled = betSettled;
