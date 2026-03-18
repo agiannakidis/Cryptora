@@ -1,10 +1,16 @@
 const express = require('express');
-let checkSelfExclusion = () => ({ blocked: false });
-let checkDepositLimit = () => ({ allowed: true });
-let recordDeposit = () => {};
+// Responsible Gaming checks — REQUIRED for production
+let checkSelfExclusion, checkDepositLimit, recordDeposit;
 try {
   ({ checkSelfExclusion, checkDepositLimit, recordDeposit } = require('../rg-check'));
-} catch(e) { console.warn('[crypto] rg-check not available:', e.message); }
+} catch(e) {
+  console.error('[STARTUP CRITICAL] Failed to load rg-check module:', e.message);
+  console.error('[STARTUP CRITICAL] Responsible Gaming checks will be DISABLED — fix immediately');
+  // Fail-open with loud logging (do not fail startup — RG check failure should not block all deposits)
+  checkSelfExclusion = async (userId) => { console.warn('[RG DISABLED] checkSelfExclusion skipped for', userId); return { blocked: false }; };
+  checkDepositLimit = async (userId, amount) => { console.warn('[RG DISABLED] checkDepositLimit skipped for', userId, amount); return { allowed: true }; };
+  recordDeposit = async (userId, amount) => { console.warn('[RG DISABLED] recordDeposit skipped for', userId, amount); };
+}
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const { authMiddleware: authenticate } = require('../middleware/auth');

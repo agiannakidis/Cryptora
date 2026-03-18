@@ -8,15 +8,32 @@ const { authMiddleware, sanitizeUser, JWT_SECRET, invalidateUserCache, blacklist
 
 const router = express.Router();
 
-// Optional imports — gracefully handle missing modules
-let checkSelfExclusion = () => ({ blocked: false });
-let sendVerificationEmail = async () => {};
-let sendVerificationCode = async () => {};
-let trackRegistration = () => {};
+// Safety-critical imports — log loudly if unavailable
+let checkSelfExclusion, sendVerificationEmail, sendVerificationCode, trackRegistration;
 
-try { ({ checkSelfExclusion } = require('../rg-check')); } catch {}
-try { ({ sendVerificationEmail, sendVerificationCode } = require('../email')); } catch {}
-try { ({ trackRegistration } = require('../affiliate')); } catch {}
+try {
+  ({ checkSelfExclusion } = require('../rg-check'));
+} catch(e) {
+  console.error('[STARTUP CRITICAL] Failed to load rg-check module:', e.message);
+  console.error('[STARTUP CRITICAL] Self-exclusion checks will be DISABLED — fix immediately');
+  checkSelfExclusion = async (userId) => { console.warn('[RG DISABLED] checkSelfExclusion skipped for', userId); return { blocked: false }; };
+}
+
+try {
+  ({ sendVerificationEmail, sendVerificationCode } = require('../email'));
+} catch(e) {
+  console.error('[STARTUP WARNING] Failed to load email module:', e.message);
+  console.error('[STARTUP WARNING] Email verification will be DISABLED');
+  sendVerificationEmail = async () => { console.warn('[EMAIL DISABLED] sendVerificationEmail skipped'); };
+  sendVerificationCode = async () => { console.warn('[EMAIL DISABLED] sendVerificationCode skipped'); };
+}
+
+try {
+  ({ trackRegistration } = require('../affiliate'));
+} catch(e) {
+  console.warn('[STARTUP INFO] Affiliate module not available:', e.message);
+  trackRegistration = () => { console.warn('[AFFILIATE DISABLED] trackRegistration skipped'); };
+}
 
 function signToken(user) {
   return jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
