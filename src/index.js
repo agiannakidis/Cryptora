@@ -73,7 +73,22 @@ app.use('/api', geoBlock({
   ],
 }));
 
-app.set("trust proxy", 1); // Trust Nginx / Cloudflare
+app.set("trust proxy", 1);
+
+// ── Partners Dashboard Session (Redis-backed httpOnly cookies) ─
+const expressSession = require('express-session');
+const RedisStoreLib = require('connect-redis').default;
+const { createClient: createRedisClient } = require('redis');
+const _partnersRedis = createRedisClient({ url: process.env.REDIS_URL || 'redis://localhost:6379' });
+_partnersRedis.connect().catch(e => console.warn('[Partners] Redis:', e.message));
+const _SESSION_SECRET = process.env.SESSION_SECRET || process.env.JWT_SECRET;
+app.use('/api/partners', expressSession({
+  store: new RedisStoreLib({ client: _partnersRedis, prefix: 'prt_sess:' }),
+  secret: _SESSION_SECRET || 'must-set-SESSION_SECRET',
+  resave: false, saveUninitialized: false,
+  name: 'partner_sid',
+  cookie: { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 24*60*60*1000 },
+})); // Trust Nginx / Cloudflare
 app.use(express.urlencoded({ extended: true }));
 
 // Rate limiting — auth endpoints (prevent brute force)
@@ -128,6 +143,8 @@ app.use('/api/jackpot', require('./routes/jackpot'));
 app.use('/api/ticker', require('./routes/ticker'));
 app.use('/api/analytics', require('./routes/analytics'));
 app.use('/api/chat', require('./routes/chat'));
+// Partners dashboard routes
+app.use('/api/partners', require('./partners'));
 
 app.use('/api/operator', require('./routes/operatorAuth'));
 
