@@ -204,7 +204,8 @@ async function checkAddress(row) {
         if (contract) incoming = await tronChain.getIncomingTRC20Transfers(address, contract);
       }
     } else if (chain === 'TON') {
-      incoming = await tonChain.getIncomingTransactions(address);
+      // TON deposits disabled — skip monitoring (no deposit modal for TON)
+      return;
     } else if (chain === 'SOL' && token === 'SOL') { // SOL: monitored via mainnet-beta RPC
       incoming = await solanaChain.getIncomingTransactions(address);
     } else if (chain === 'XRP') { // XRP: monitored via s1.ripple.com

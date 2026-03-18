@@ -68,10 +68,13 @@ router.get('/deposit-address', authenticate, async (req, res) => {
   if (!chainConfig.tokens.includes(token)) return res.status(400).json({ error: `Token ${token} not supported on ${chain}` });
 
   // ARBITRUM monitoring not implemented — reject deposits
-  if (chain === 'ARBITRUM') return res.status(400).json({ error: 'ARBITRUM deposits are currently disabled. Supported chains: TRX, ETH, BSC, POLYGON, BTC, LTC, SOL, XRP, TON' });
+  if (chain === 'ARBITRUM') return res.status(400).json({ error: 'ARBITRUM deposits are currently disabled. Supported chains for deposits: TRX, ETH, BSC, POLYGON, BTC, LTC, SOL, XRP (TON: withdrawal only)' });
 
   // TON: no polling deposit monitor implemented — reject deposits
   if (chain === 'TON') return res.status(400).json({ error: 'TON deposits are currently disabled pending monitoring implementation. TON withdrawals are supported.' });
+
+  // SOL USDC: monitoring not implemented — reject deposits
+  if (chain === 'SOL' && token === 'USDC') return res.status(400).json({ error: 'USDC on Solana deposits are currently disabled. Supported on SOL: SOL native only. For USDC use TRX or ETH network.' });
 
   try {
     const address = await getUserAddress(req.user.id, chain, token);
@@ -119,6 +122,9 @@ router.post('/withdraw', authenticate, async (req, res) => {
 
   // ARBITRUM monitoring not implemented — reject withdrawals
   if (chain === 'ARBITRUM') return res.status(400).json({ error: 'ARBITRUM withdrawals are currently disabled. Supported chains: TRX, ETH, BSC, POLYGON, BTC, LTC, SOL, XRP, TON' });
+
+  // SOL USDC: monitoring not implemented — reject withdrawals
+  if (chain === 'SOL' && token === 'USDC') return res.status(400).json({ error: 'USDC on Solana withdrawals are currently disabled. Supported on SOL: SOL native only. For USDC use TRX or ETH network.' });
 
   const amountNum = parseFloat(amount);
   if (isNaN(amountNum) || amountNum <= 0) return res.status(400).json({ error: 'Invalid amount' });

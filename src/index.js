@@ -14,8 +14,9 @@ require('dotenv').config();
   }
 
   const secret = process.env.JWT_SECRET || '';
-  if (WEAK_VALUES.includes(secret) || secret.length < 32) {
-    console.error('[STARTUP] WARNING: JWT_SECRET is weak or default — rotate immediately!');
+  if (!secret || WEAK_VALUES.includes(secret) || secret.length < 32) {
+    console.error('[STARTUP] CRITICAL: JWT_SECRET is missing, weak, or too short (min 32 chars) — rotate immediately!');
+    ok = false;
   }
 
   if (!process.env.PRAGMATIC_PRIVATE_KEY) {
