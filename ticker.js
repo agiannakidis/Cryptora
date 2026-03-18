@@ -98,12 +98,12 @@
       display: flex;
       align-items: center;
       white-space: nowrap;
-      animation: cr-scroll 40s linear infinite;
+      animation: cr-scroll 160s linear infinite;
       will-change: transform;
     }
 
     #${TICKER_ID}.cr-announce .cr-track {
-      animation-duration: 25s;
+      animation-duration: 100s;
     }
 
     @keyframes cr-scroll {

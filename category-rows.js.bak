@@ -1,0 +1,328 @@
+// category-rows.js — Cryptora homepage category layout v2
+(function () {
+  'use strict';
+
+  const API_BASE = '/api/games';
+  const SCROLL_AMT = 320;
+
+  function getToken() {
+    try { return localStorage.getItem('casino_token') || sessionStorage.getItem('casino_token') || ''; } catch { return ''; }
+  }
+  function getUserId() {
+    try {
+      const t = getToken();
+      if (!t) return null;
+      const p = JSON.parse(atob(t.split('.')[1]));
+      return p.id || null;
+    } catch { return null; }
+  }
+
+  // ── Styles ────────────────────────────────────────────────────────────────
+  function injectStyles() {
+    if (document.getElementById('cr-cat-styles')) return;
+    const s = document.createElement('style');
+    s.id = 'cr-cat-styles';
+    s.textContent = `
+      #cr-categories { padding: 0 0 32px 0; }
+      .cr-section { margin-bottom: 28px; }
+      .cr-section-header { display:flex; align-items:center; justify-content:space-between; padding:0 16px; margin-bottom:10px; }
+      .cr-section-title { font-size:18px; font-weight:700; color:#fff; display:flex; align-items:center; gap:8px; }
+      .cr-see-all { font-size:13px; color:#888; cursor:pointer; transition:color .2s; }
+      .cr-see-all:hover { color:#f0c040; }
+      .cr-scroll-wrap { position:relative; }
+      .cr-row {
+        display:flex; gap:10px;
+        overflow-x:auto; padding:4px 16px 8px;
+        scroll-behavior:smooth; -webkit-overflow-scrolling:touch;
+        scrollbar-width:none;
+      }
+      .cr-row::-webkit-scrollbar { display:none; }
+      .cr-arrow {
+        position:absolute; top:50%; transform:translateY(-50%);
+        width:36px; height:64px;
+        background:rgba(10,14,26,.85); border:1px solid #252b45; border-radius:8px;
+        color:#fff; font-size:20px; display:flex; align-items:center; justify-content:center;
+        cursor:pointer; z-index:10; opacity:0; transition:opacity .2s; user-select:none;
+      }
+      .cr-scroll-wrap:hover .cr-arrow { opacity:1; }
+      .cr-arrow.left  { left:0; }
+      .cr-arrow.right { right:0; }
+      .cr-arrow:hover { background:rgba(240,192,64,.15); border-color:#f0c040; }
+      .cr-card {
+        flex:0 0 190px; width:190px; border-radius:12px; overflow:hidden;
+        background:#141829; border:1px solid #252b45;
+        cursor:pointer; transition:all .25s; position:relative;
+      }
+      @media(max-width:600px){ .cr-card{flex:0 0 140px;width:140px;} }
+      .cr-card:hover { border-color:rgba(240,192,64,.4); transform:translateY(-3px); box-shadow:0 8px 20px rgba(240,192,64,.08); }
+      .cr-card img { width:100%; aspect-ratio:3/4; object-fit:cover; display:block; }
+      .cr-card-body { padding:6px 8px 8px; }
+      .cr-card-title { font-size:11px; font-weight:600; color:#ccc; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      .cr-card-prov  { font-size:10px; color:#555; margin-top:1px; }
+      .cr-jackpot-badge {
+        position:absolute; top:6px; left:6px;
+        background:#f0c040; color:#0a0e1a;
+        font-size:9px; font-weight:700; border-radius:4px; padding:1px 5px;
+      }
+      /* Filtered flat grid */
+      #cr-filtered { padding: 0 16px 32px; }
+      #cr-filtered-title { font-size:18px; font-weight:700; color:#fff; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
+      #cr-filtered-grid {
+        display:grid;
+        grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+        gap:10px;
+      }
+      #cr-filtered-grid .cr-card { width:100%; flex:none; aspect-ratio:3/4; }
+    `;
+    document.head.appendChild(s);
+  }
+
+  // ── Card ──────────────────────────────────────────────────────────────────
+  function makeCard(game) {
+    const card = document.createElement('a');
+    card.className = 'cr-card';
+    card.href = '/GamePlay?id=' + encodeURIComponent(game.id);
+    card.style.textDecoration = 'none';
+    const img = document.createElement('img');
+    img.src = game.thumbnail || '';
+    img.alt = game.title || '';
+    img.loading = 'lazy';
+    img.onerror = function () { this.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="140" height="105"><rect width="140" height="105" fill="%230d1117"/></svg>'; };
+    const body = document.createElement('div');
+    body.className = 'cr-card-body';
+    const title = document.createElement('div');
+    title.className = 'cr-card-title';
+    title.textContent = game.title || '';
+    const prov = document.createElement('div');
+    prov.className = 'cr-card-prov';
+    prov.textContent = game.provider || '';
+    body.appendChild(title);
+    body.appendChild(prov);
+    card.appendChild(img);
+    card.appendChild(body);
+    if (game.has_jackpot) {
+      const b = document.createElement('div');
+      b.className = 'cr-jackpot-badge';
+      b.textContent = 'JP';
+      card.appendChild(b);
+    }
+    return card;
+  }
+
+  // ── Category row ──────────────────────────────────────────────────────────
+  const CAT_ICONS = { last_played:'🕐', featured:'⭐', new:'🆕', table:'🎰', crash:'💥', megaways:'🔥', bonus_buy:'💎', jackpot:'🏆', slots:'🎲' };
+
+  function makeRow(cat) {
+    const section = document.createElement('div');
+    section.className = 'cr-section';
+    const header = document.createElement('div');
+    header.className = 'cr-section-header';
+    const titleEl = document.createElement('div');
+    titleEl.className = 'cr-section-title';
+    titleEl.innerHTML = `<span>${CAT_ICONS[cat.key] || '🎮'}</span><span>${cat.label}</span>`;
+    const seeAll = document.createElement('span');
+    seeAll.className = 'cr-see-all';
+    seeAll.textContent = 'See all →';
+    seeAll.addEventListener('click', () => showFiltered(cat.label, { category: cat.key }));
+    header.appendChild(titleEl);
+    header.appendChild(seeAll);
+    const wrap = document.createElement('div');
+    wrap.className = 'cr-scroll-wrap';
+    const row = document.createElement('div');
+    row.className = 'cr-row';
+    const btnL = document.createElement('div');
+    btnL.className = 'cr-arrow left';
+    btnL.innerHTML = '&#8249;';
+    btnL.addEventListener('click', () => { row.scrollLeft -= SCROLL_AMT; });
+    const btnR = document.createElement('div');
+    btnR.className = 'cr-arrow right';
+    btnR.innerHTML = '&#8250;';
+    btnR.addEventListener('click', () => { row.scrollLeft += SCROLL_AMT; });
+    cat.games.forEach(g => row.appendChild(makeCard(g)));
+    wrap.appendChild(btnL);
+    wrap.appendChild(row);
+    wrap.appendChild(btnR);
+    section.appendChild(header);
+    section.appendChild(wrap);
+    return section;
+  }
+
+  // ── State ─────────────────────────────────────────────────────────────────
+  let categoriesData = null;
+  let hiddenTarget = null;
+  let crContainer = null;
+
+  // ── Show category view ────────────────────────────────────────────────────
+  async function showCategories() {
+    const existing = document.getElementById('cr-filtered');
+    if (existing) existing.remove();
+
+    if (crContainer) {
+      crContainer.style.display = '';
+      return;
+    }
+
+    const userId = getUserId();
+    const url = userId ? `${API_BASE}/by-category?userId=${userId}` : `${API_BASE}/by-category`;
+    let categories;
+    try {
+      const r = await fetch(url);
+      categories = await r.json();
+      categoriesData = categories;
+    } catch { return; }
+
+    if (!Array.isArray(categories) || !categories.length) return;
+
+    const wrapper = document.createElement('div');
+    wrapper.id = 'cr-categories';
+    categories.forEach(cat => {
+      if (cat.games && cat.games.length > 0) wrapper.appendChild(makeRow(cat));
+    });
+
+    crContainer = wrapper;
+    if (hiddenTarget) {
+      hiddenTarget.style.display = 'none';
+      hiddenTarget.parentElement.insertBefore(wrapper, hiddenTarget);
+    }
+  }
+
+  // ── Show filtered view (provider or category tab) ─────────────────────────
+  async function showFiltered(label, params) {
+    // Hide category rows, show filtered grid
+    if (crContainer) crContainer.style.display = 'none';
+
+    const existing = document.getElementById('cr-filtered');
+    if (existing) existing.remove();
+
+    let games;
+    try {
+      const qs = new URLSearchParams({ ...params, limit: 200 });
+      const r = await fetch(`${API_BASE}/list?${qs}`);
+      games = await r.json();
+    } catch { return; }
+
+    if (!Array.isArray(games)) return;
+
+    const wrap = document.createElement('div');
+    wrap.id = 'cr-filtered';
+    const titleEl = document.createElement('div');
+    titleEl.id = 'cr-filtered-title';
+    titleEl.textContent = label + ` (${games.length})`;
+    const grid = document.createElement('div');
+    grid.id = 'cr-filtered-grid';
+    games.forEach(g => grid.appendChild(makeCard(g)));
+    wrap.appendChild(titleEl);
+    wrap.appendChild(grid);
+
+    if (hiddenTarget) {
+      hiddenTarget.parentElement.insertBefore(wrap, hiddenTarget);
+    }
+  }
+
+  // ── Map React tab text → filter params ───────────────────────────────────
+  const CAT_TAB_MAP = {
+    'All Games': null,            // show category rows
+    'Popular':   { category: 'featured' },
+    'New':       { category: 'new' },
+    'Slots':     { category: 'slots' },
+    'Crash Game':{ category: 'crash' },
+    'Crash':     { category: 'crash' },
+    'Megaways':  { category: 'megaways' },
+    'Table':     { category: 'table' },
+  };
+
+  // ── Intercept tab clicks ──────────────────────────────────────────────────
+  function attachTabListeners() {
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+
+      const text = btn.textContent.trim();
+
+      // Provider tabs
+      if (text === 'All Providers') {
+        showCategories();
+        return;
+      }
+      const PROVIDERS = ['Amatic','Novomatic','Yggdrasil','NetGame','Pragmatic Play'];
+      if (PROVIDERS.includes(text)) {
+        showFiltered(text, { provider: text });
+        return;
+      }
+
+      // Category tabs
+      if (text in CAT_TAB_MAP) {
+        const params = CAT_TAB_MAP[text];
+        if (params === null) {
+          showCategories();
+        } else {
+          showFiltered(text, params);
+        }
+        return;
+      }
+
+      // Search box — let React handle, but restore grid if category rows are hidden
+    }, true); // capture phase so we run first
+  }
+
+  // ── Find and hide React game grid ─────────────────────────────────────────
+  function findGameGrid() {
+    const grids = document.querySelectorAll('[class]');
+    return Array.from(grids).find(el =>
+      el.className && typeof el.className === 'string' &&
+      el.className.includes('grid-cols') &&
+      el.querySelectorAll('img').length > 3
+    );
+  }
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+  function init() {
+    injectStyles();
+    const path = window.location.pathname;
+    const HOME_PATHS = ['/', '/Home', '/home'];
+    const isHome = HOME_PATHS.includes(path) || path === '/';
+    if (!isHome) return;
+
+    attachTabListeners();
+
+    const grid = findGameGrid();
+    if (grid) {
+      hiddenTarget = grid.parentElement || grid;
+      showCategories();
+      return;
+    }
+
+    const obs = new MutationObserver(() => {
+      const g = findGameGrid();
+      if (g) {
+        obs.disconnect();
+        hiddenTarget = g.parentElement || g;
+        showCategories();
+      }
+    });
+    obs.observe(document.body, { childList: true, subtree: true });
+    setTimeout(() => obs.disconnect(), 15000);
+  }
+
+  // SPA navigation
+  let lastPath = location.pathname;
+  setInterval(() => {
+    if (location.pathname !== lastPath) {
+      lastPath = location.pathname;
+      crContainer = null;
+      hiddenTarget = null;
+      categoriesData = null;
+      const old = document.getElementById('cr-categories');
+      if (old) old.remove();
+      const oldF = document.getElementById('cr-filtered');
+      if (oldF) oldF.remove();
+      setTimeout(init, 500);
+    }
+  }, 300);
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();

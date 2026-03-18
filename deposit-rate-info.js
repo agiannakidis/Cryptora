@@ -3,7 +3,8 @@
  * Fixes: modal jump (in-place update) + rate flicker (observer disconnect during update)
  */
 (function () {
-  'use strict';
+  if (location.pathname.startsWith('/admin')) return;
+    'use strict';
 
   const STABLECOINS = new Set(['USDT', 'USDC', 'BUSD', 'DAI']);
   const INJECT_ID = 'crypt-rate-banner';

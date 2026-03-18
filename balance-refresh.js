@@ -3,7 +3,8 @@
  * Polls /api/auth/me every 30s and updates the header balance display
  */
 (function () {
-  'use strict';
+  if (location.pathname.startsWith('/admin')) return;
+    'use strict';
 
   const POLL_MS = 30000;
 

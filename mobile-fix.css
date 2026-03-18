@@ -302,3 +302,18 @@ button:not(:has(svg)):not(:has(img)),
 [class*="overflow-x"] button {
   flex-shrink: 0 !important;
 }
+
+/* ===== GAME CARD ICONS — object-fit: contain ============================
+   Картинки провайдеров (amatic/icons, novomatic, netgame итп) обрезались.
+   Меняем cover → contain; тёмный фон закрывает letterbox.
+   Родитель: .aspect-[3/4].overflow-hidden → img.object-cover
+   ======================================================================= */
+.aspect-\[3\/4\] > img.object-cover {
+  object-fit: contain !important;
+  background-color: #0d1117;
+}
+
+/* ── Widen main page layout from 1440px to 1920px ── */
+.max-w-\[1440px\] {
+  max-width: 1920px !important;
+}
