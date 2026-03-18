@@ -57,7 +57,19 @@ app.use(express.json());
 const geoBlock = require('./geo-block');
 app.use('/api', geoBlock({
   countries: ['US', 'GB', 'AU', 'FR', 'DE', 'NL', 'IT', 'ES', 'BE', 'PL', 'HU', 'RO', 'CZ'],
-  bypassPaths: ['/api/auth/login', '/api/auth/register', '/api/auth/telegram', '/health', '/api/health'],
+  bypassPaths: [
+    // with /api/ prefix (req.originalUrl)
+    '/api/auth/login', '/api/auth/register', '/api/auth/telegram', '/api/auth/me',
+    '/api/banner', '/api/jackpot', '/api/ticker', '/api/crypto/prices',
+    '/api/promotions', '/api/entities/Game', '/api/entities/GameProvider',
+    '/api/chat', '/api/analytics', '/health', '/api/health',
+    // without /api/ prefix (req.path when mounted under /api)
+    '/auth/login', '/auth/register', '/auth/telegram', '/auth/me',
+    '/banner', '/jackpot', '/ticker', '/crypto/prices',
+    '/promotions', '/entities/Game', '/entities/GameProvider',
+    '/chat', '/analytics', '/health',
+    '/api/affiliate', '/affiliate', '/api/rgs', '/api/games', '/land', '/api/operator',
+  ],
 }));
 
 app.set("trust proxy", 1); // Trust Nginx / Cloudflare
@@ -105,10 +117,12 @@ app.use('/api/functions', require('./routes/functions'));
 app.use('/api/apps', require('./routes/app'));
 app.use('/api/crypto', require('./routes/crypto'));
 app.use('/api/affiliate', require('./routes/affiliate'));
+app.use('/api/rgs', require('./routes/rgs'));
 app.use('/api/promotions', require('./routes/promotions'));
 app.use('/api/rg', require('./routes/rg'));
 app.use('/api/games', require('./routes/games'));
 app.use('/api/banner', require('./routes/banner'));
+app.use('/api/admin/geo-block', require('./routes/geoblock'));
 app.use('/api/jackpot', require('./routes/jackpot'));
 app.use('/api/ticker', require('./routes/ticker'));
 app.use('/api/analytics', require('./routes/analytics'));

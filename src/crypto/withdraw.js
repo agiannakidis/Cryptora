@@ -50,7 +50,7 @@ function getHotWalletAddress(chain) {
 
 async function processWithdrawal(withdrawalId) {
   const wd = await queryOne('SELECT * FROM crypto_withdrawals WHERE id = $1', [withdrawalId]);
-  if (!wd || wd.status !== 'pending') return null;
+  if (!wd || !['pending', 'processing'].includes(wd.status)) return null;
 
   const { chain, token, amount_crypto, to_address } = wd;
   const chainConfig = CHAINS[chain];
@@ -108,6 +108,28 @@ async function processWithdrawal(withdrawalId) {
       "UPDATE crypto_withdrawals SET status = 'failed', error = $1 WHERE id = $2",
       [e.message, withdrawalId]
     );
+    // Refund balance to user on failure
+    try {
+      const wd = await queryOne('SELECT user_id, amount_usd FROM crypto_withdrawals WHERE id = $1', [withdrawalId]);
+      if (wd && wd.user_id && parseFloat(wd.amount_usd) > 0) {
+        await query(
+          'UPDATE users SET balance = balance + $1 WHERE id = $2',
+          [parseFloat(wd.amount_usd), wd.user_id]
+        );
+        console.log('[Withdrawal] Refunded $' + wd.amount_usd + ' to user ' + wd.user_id + ' after failure');
+        // Record refund transaction
+        const { v4: uuidv4 } = require('uuid');
+        await query(
+          `INSERT INTO tx_idempotency (id, reference, user_email, type, amount, balance_after, description)
+           SELECT $1, $2, email, 'refund', $3, balance, $4
+           FROM users WHERE id = $5`,
+          [uuidv4(), 'refund_' + withdrawalId, parseFloat(wd.amount_usd),
+           'Withdrawal failed — funds returned', wd.user_id]
+        );
+      }
+    } catch(refundErr) {
+      console.error('[Withdrawal] REFUND FAILED for ' + withdrawalId + ': ' + refundErr.message);
+    }
     console.error('[Withdrawal] Failed ' + withdrawalId + ': ' + e.message);
     throw e;
   }

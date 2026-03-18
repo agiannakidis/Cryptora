@@ -9,7 +9,7 @@ const MAX_HISTORY = 100;
 
 async function getHistory(limit = 50) {
   const res = await pool.query(
-    `SELECT id, username, role, message, created_at FROM chat_messages ORDER BY id DESC LIMIT $1`,
+    `SELECT id, username, role, message, created_at FROM community_messages ORDER BY id DESC LIMIT $1`,
     [limit]
   );
   return res.rows.reverse();
@@ -17,11 +17,11 @@ async function getHistory(limit = 50) {
 
 async function saveMessage(userId, username, role, message) {
   const res = await pool.query(
-    `INSERT INTO chat_messages (user_id, username, role, message) VALUES ($1,$2,$3,$4) RETURNING id, username, role, message, created_at`,
+    `INSERT INTO community_messages (user_id, username, role, message) VALUES ($1,$2,$3,$4) RETURNING id, username, role, message, created_at`,
     [userId, username, role, message]
   );
   // Keep last 1000 messages
-  pool.query(`DELETE FROM chat_messages WHERE id NOT IN (SELECT id FROM chat_messages ORDER BY id DESC LIMIT 1000)`).catch(()=>{});
+  pool.query(`DELETE FROM community_messages WHERE id NOT IN (SELECT id FROM community_messages ORDER BY id DESC LIMIT 1000)`).catch(()=>{});
   return res.rows[0];
 }
 

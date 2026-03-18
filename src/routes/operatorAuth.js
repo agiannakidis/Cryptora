@@ -773,6 +773,25 @@ router.post('/launch-game', landPlayerAuth, async (req, res) => {
       const p = new URLSearchParams({ gameName, operatorId: amaticOpId, sessionId, playerName: username, mode: 'external', currency: 'EUR', closeUrl: 'https://cryptora.live/land' });
       launchUrl = base + '?' + p.toString();
 
+    } else if (game.category === 'GameServices') {
+      // RGS providers (EGT, NetEnt, Novomatic, Amatic, Pragmatic via game-services.work)
+      const rgsOperatorId = process.env.RGS_OPERATOR_ID || 'cryptora';
+      const rgsLaunchBase = process.env.RGS_LAUNCH_URL || 'https://ss.game-services.work/platform/api/game/launch';
+      const playerToken = uuidv4();
+      const rgsSessionId = uuidv4();
+      const currency = 'USD';
+      await query(
+        'INSERT INTO rgs_sessions (player_token, session_id, user_id, game_uuid, currency) VALUES ($1,$2,$3,$4,$5)',
+        [playerToken, rgsSessionId, 'land:' + player.id, game.provider_game_id || game.game_id, currency]
+      );
+      launchUrl = rgsLaunchBase
+        + '?operator_id=' + rgsOperatorId
+        + '&player_token=' + playerToken
+        + '&currency=' + currency
+        + '&game_uuid=' + encodeURIComponent(game.provider_game_id || game.game_id)
+        + '&device_type=DESKTOP'
+        + '&lobby_url=' + encodeURIComponent('https://cryptora.live/land');
+
     } else {
       const apiUrl = process.env.PRAGMATIC_API_URL || 'https://gs2.grandx.pro/euro-extern/dispatcher/egame/openGame/v2';
       const sigInput = `${privateKey}operatorId=${operatorId}&username=${username}&sessionId=${sessionId}&gameId=${gameName}`;

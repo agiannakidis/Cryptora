@@ -121,6 +121,13 @@ function parseRow(row) {
 }
 
 // ── GET /:entity ──────────────────────────────────────────────────────────────
+// ── GET /entities/:entity/filter — alias for list with query filters (SDK compat)
+router.get('/:entity/filter', optionalAuth, async (req, res, next) => {
+  // Just treat as a list request — all filters come as query params
+  req.url = req.url.replace('/filter', '');
+  next('route');
+});
+
 router.get('/:entity', optionalAuth, async (req, res) => {
   const entityName = req.params.entity;
 
@@ -133,27 +140,93 @@ router.get('/:entity', optionalAuth, async (req, res) => {
     try {
       let sql, params;
       const HIDDEN_TYPES = "('round_complete')";
+      // Support type filter: ?type=deposit or ?type__in=deposit,withdraw
+      const typeFilter = req.query.type || req.query['type__in'] || null;
+      let typeWhere = '';
+      let typeParams = [];
+      if (typeFilter) {
+        const types = typeFilter.split(',').map(t => t.trim()).filter(Boolean);
+        if (types.length === 1) {
+          typeWhere = ` AND type = '${types[0].replace(/'/g, '')}'`;
+        } else {
+          typeWhere = ` AND type IN (${types.map(t => `'${t.replace(/'/g, '')}'`).join(',')})`;
+        }
+      }
       if (req.user.role === 'admin') {
         sql = `SELECT id, user_email, type, amount::float as amount, balance_after::float as balance_after,
                  game_id, game_title, reference, created_at as created_date
                FROM tx_idempotency
-               WHERE type NOT IN ${HIDDEN_TYPES}
+               WHERE type NOT IN ${HIDDEN_TYPES}${typeWhere}
                ORDER BY created_at DESC LIMIT $1 OFFSET $2`;
         params = [limit, offset];
       } else {
         sql = `SELECT id, user_email, type, amount::float as amount, balance_after::float as balance_after,
                  game_id, game_title, reference, created_at as created_date
                FROM tx_idempotency
-               WHERE user_email = $1 AND type NOT IN ${HIDDEN_TYPES}
+               WHERE user_email = $1 AND type NOT IN ${HIDDEN_TYPES}${typeWhere}
                ORDER BY created_at DESC LIMIT $2 OFFSET $3`;
         params = [req.user.email, limit, offset];
       }
       const rows = await pgQueryAll(sql, params);
-      return res.json(rows.map(r => ({
+      const txList = rows.map(r => ({
         ...r,
         amount: parseFloat(r.amount) || 0,
         balance_after: parseFloat(r.balance_after) || 0,
-      })));
+        status: 'completed',
+        description: r.description || (r.type === 'deposit' ? '✅ Confirmed' : r.type === 'withdrawal' ? '✅ Completed' : null),
+      }));
+
+      // Merge withdrawals from crypto_withdrawals table (with status)
+      const wantWithdrawals = !typeFilter || typeFilter.includes('withdraw') || typeFilter.includes('withdrawal');
+      if (wantWithdrawals) {
+        const wdWhere = req.user.role === 'admin' ? '' : 'WHERE user_id = $1';
+        const wdParams = req.user.role === 'admin' ? [] : [req.user.id];
+        const wds = await pgQueryAll(
+          `SELECT id, user_email, 'withdrawal' as type,
+            amount_usd::float as amount,
+            chain, token, to_address, status, tx_hash, error,
+            created_date
+          FROM crypto_withdrawals
+          ${wdWhere}
+          ORDER BY created_date DESC LIMIT 100`,
+          wdParams
+        );
+        const wdMapped = wds.map(w => {
+          const st = w.status || 'pending';
+          const statusDesc = {
+            pending:    '🕐 Pending approval',
+            processing: '⚙️ Processing on-chain',
+            completed:  '✅ Sent' + (w.tx_hash ? ' · ' + w.tx_hash.slice(0,10) + '…' : ''),
+            failed:     '❌ Failed' + (w.error ? ': ' + w.error.slice(0,40) : ''),
+            rejected:   '🚫 Rejected',
+          }[st] || st;
+          return {
+            id: w.id,
+            user_email: w.user_email,
+            type: 'withdrawal',
+            amount: -Math.abs(parseFloat(w.amount) || 0),
+            balance_after: null,
+            game_id: null,
+            game_title: null,
+            reference: w.tx_hash || null,
+            created_date: w.created_date,
+            status: st,
+            description: statusDesc + (w.chain ? ' · ' + w.token + '@' + w.chain : ''),
+            chain: w.chain,
+            token: w.token,
+            to_address: w.to_address,
+            error: w.error,
+          };
+        });
+
+        // Merge and sort by date, apply limit
+        const merged = [...txList, ...wdMapped]
+          .sort((a, b) => new Date(b.created_date) - new Date(a.created_date))
+          .slice(0, limit);
+        return res.json(merged);
+      }
+
+      return res.json(txList);
     } catch(e) {
       return res.status(500).json({ error: e.message });
     }
@@ -236,6 +309,29 @@ router.get('/:entity', optionalAuth, async (req, res) => {
   }
 });
 
+
+// ── GET /:entity/:id ─────────────────────────────────────────────────────────
+router.get('/:entity/:id', optionalAuth, async (req, res) => {
+  const { entity: entityName, id } = req.params;
+  const table = getTable(entityName);
+  if (!table) return res.status(404).json({ error: 'Unknown entity' });
+
+  if (!PUBLIC_READ.includes(entityName) && !req.user)
+    return res.status(401).json({ error: 'Authentication required' });
+
+  if (ADMIN_ONLY.includes(entityName) && req.user?.role !== 'admin')
+    return res.status(403).json({ error: 'Forbidden' });
+
+  try {
+    const row = await queryOne(`SELECT * FROM ${table} WHERE id = $1`, [id]);
+    if (!row) return res.status(404).json({ error: 'Not found' });
+    res.json(parseRow(row));
+  } catch (err) {
+    console.error('[entities GET/:id]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── POST /:entity ─────────────────────────────────────────────────────────────
 router.post('/:entity', authMiddleware, async (req, res) => {
   const entityName = req.params.entity;
@@ -296,11 +392,14 @@ router.put('/:entity/:id', authMiddleware, async (req, res) => {
   const isAdmin = req.user.role === 'admin';
 
   // Non-admins cannot write to protected entities
-  if (ADMIN_WRITE_ENTITIES.includes(entityName) && !isAdmin)
+  // Exception: any logged-in user can increment play_count on Game
+  const isGamePlayCount = entityName === 'Game' && !isAdmin &&
+    Object.keys(req.body).every(k => k === 'play_count');
+  if (ADMIN_WRITE_ENTITIES.includes(entityName) && !isAdmin && !isGamePlayCount)
     return res.status(403).json({ error: 'Admin only' });
 
   // Non-admins cannot write protected fields on ANY entity
-  if (!isAdmin) {
+  if (!isAdmin && !isGamePlayCount) {
     for (const field of ADMIN_WRITE_FIELDS) {
       if (req.body[field] !== undefined)
         return res.status(403).json({ error: `Cannot modify protected field: ${field}` });

@@ -1,4 +1,5 @@
 const { v4: uuidv4 } = require('uuid');
+const { getPrivateKey, generateAddress } = require('./wallet');
 let recordDeposit = () => {};
 let checkDepositLimit = () => ({ allowed: true });
 try {
@@ -10,6 +11,7 @@ const { CHAINS } = require('./config');
 const evmChain = require('./chains/evm');
 const btcChain = require('./chains/bitcoin');
 const tronChain = require('./chains/tron');
+const { TronWeb } = require('tronweb');
 const tonChain = require('./chains/ton');
 const solanaChain = require('./chains/solana');
 const xrpChain = require('./chains/xrp');
@@ -80,6 +82,103 @@ async function creditDeposit(userId, chain, token, amount, txHash, amountUsd) {
   console.log(`✅ Credited: user=${userId} +$${amountUsd.toFixed(2)} | ${amount} ${token}@${chain} | tx=${txHash}`);
 }
 
+
+// ── Auto-sweep: move deposited funds to hot wallet ────────────────────────────
+// For TRC-20: hot wallet first fuels player address with TRX, then player address sweeps USDT back
+const TRX_FUEL_AMOUNT = 8; // TRX to send for energy (covers ~1 sweep + buffer)
+const TRX_MIN_FOR_SWEEP = 3; // minimum TRX needed to initiate sweep
+
+async function autoSweep(userId, chain, token, amount) {
+  try {
+    const chainConfig = CHAINS[chain];
+    if (!chainConfig) return;
+
+    const hotWallets = {
+      TRX: process.env.HOT_WALLET_TRX_ADDRESS || '',
+      ETH: process.env.HOT_WALLET_EVM_ADDRESS || '',
+      BSC: process.env.HOT_WALLET_EVM_ADDRESS || '',
+      POLYGON: process.env.HOT_WALLET_EVM_ADDRESS || '',
+      BTC: process.env.HOT_WALLET_BTC_ADDRESS || '',
+    };
+    const hotWallet = hotWallets[chain];
+    if (!hotWallet) {
+      console.log(`[AutoSweep] No hot wallet configured for ${chain}, skipping`);
+      return;
+    }
+
+    const privateKey = await getPrivateKey(userId, chain, token);
+    if (!privateKey) return;
+    const playerAddress = TronWeb.address.fromPrivateKey(privateKey);
+
+    if (chain === 'TRX') {
+      if (token === 'TRX') {
+        // Native TRX: keep buffer for future sweeps, send rest to hot wallet
+        const sweepAmount = Math.max(0, amount - TRX_FUEL_AMOUNT);
+        if (sweepAmount < 1) {
+          console.log(`[AutoSweep] TRX amount too small to sweep after buffer: ${amount}`);
+          return;
+        }
+        const result = await tronChain.sendTRX(privateKey, hotWallet, sweepAmount);
+        console.log(`[AutoSweep] ✅ ${sweepAmount} TRX → hot wallet tx=${result.txHash}`);
+      } else {
+        // TRC-20 (USDT etc): need TRX in player address for energy
+        const contractAddress = chainConfig.tokenContracts?.[token];
+        if (!contractAddress) return;
+
+        // Check current TRX balance of player address
+        const tw = new TronWeb({ fullHost: 'https://api.trongrid.io', headers: { 'TRON-PRO-API-KEY': process.env.TRONGRID_API_KEY } });
+        const trxBalanceSun = await tw.trx.getBalance(playerAddress).catch(() => 0);
+        const trxBalance = trxBalanceSun / 1_000_000;
+
+        if (trxBalance < TRX_MIN_FOR_SWEEP) {
+          // Fuel player address with TRX from hot wallet
+          const hotPrivKey = process.env.HOT_WALLET_TRX_PRIVATE_KEY;
+          if (!hotPrivKey) {
+            console.warn('[AutoSweep] HOT_WALLET_TRX_PRIVATE_KEY not set, cannot fuel');
+            return;
+          }
+          console.log(`[AutoSweep] Fueling ${playerAddress} with ${TRX_FUEL_AMOUNT} TRX for energy...`);
+          const fuelResult = await tronChain.sendTRX(hotPrivKey, playerAddress, TRX_FUEL_AMOUNT);
+          console.log(`[AutoSweep] ⛽ Fueled tx=${fuelResult.txHash}`);
+          // Wait for TRX to confirm (~3-5 seconds on TRON)
+          await new Promise(r => setTimeout(r, 6000));
+        }
+
+        // Now sweep TRC-20 to hot wallet
+        const result = await tronChain.sendTRC20(privateKey, hotWallet, amount, contractAddress);
+        console.log(`[AutoSweep] ✅ ${amount} ${token}@TRX → hot wallet tx=${result.txHash}`);
+      }
+
+    } else if (chainConfig.type === 'evm') {
+      if (token === chainConfig.symbol) {
+        // Native EVM coin: keep buffer for gas
+        const sweepAmount = Math.max(0, amount - 0.002);
+        if (sweepAmount < 0.0001) return;
+        const result = await evmChain.sendNative(chain, privateKey, hotWallet, sweepAmount);
+        console.log(`[AutoSweep] ✅ ${sweepAmount} ${token}@${chain} → hot wallet tx=${result.txHash}`);
+      } else {
+        // ERC-20: player needs native coin for gas — for now log and skip
+        // (EVM auto-fuel can be added later; deposits usually come with some ETH/BNB)
+        const contractAddress = chainConfig.tokenContracts?.[token];
+        if (!contractAddress) return;
+        const result = await evmChain.sendToken(chain, privateKey, hotWallet, amount, contractAddress, 6);
+        console.log(`[AutoSweep] ✅ ${amount} ${token}@${chain} → hot wallet tx=${result.txHash}`);
+      }
+
+    } else if (chain === 'BTC' || chain === 'LTC') {
+      const addrRow = await queryOne('SELECT derivation_index FROM crypto_addresses WHERE user_id=$1 AND chain=$2 LIMIT 1', [userId, chain]);
+      const { address: fromAddr } = generateAddress(chain, addrRow?.derivation_index || 0);
+      const amountSats = Math.floor(amount * 1e8);
+      if (amountSats < 1000) return;
+      const result = await btcChain.sendBTC(privateKey, fromAddr, hotWallet, amountSats, chain);
+      console.log(`[AutoSweep] ✅ ${amount} ${chain} → hot wallet tx=${result.txHash}`);
+    }
+
+  } catch (e) {
+    console.warn(`[AutoSweep] ⚠️ ${amount} ${token}@${chain}: ${e.message}`);
+  }
+}
+
 async function checkAddress(row) {
   const { user_id, chain, token, address } = row;
   const chainConfig = CHAINS[chain];
@@ -126,8 +225,19 @@ async function checkAddress(row) {
     const priceKey = (token === 'USDT' || token === 'USDC') ? token : chainConfig.symbol;
     const amountUsd = tx.amount * (prices[priceKey] || 0);
     if (amountUsd < 0.01) continue;
+    // Enforce minimum deposit (must cover sweep fees)
+    const MIN_DEPOSIT_USD = { TRX: 20, ETH: 40, BSC: 20, POLYGON: 10, BTC: 20, LTC: 20, SOL: 10, XRP: 10, TON: 10 };
+    const minDep = MIN_DEPOSIT_USD[chain] || 5;
+    if (amountUsd < minDep) {
+      console.log('[Monitor] Deposit below minimum ($' + minDep + '): ' + amountUsd.toFixed(2) + ' ' + token + '@' + chain + ' tx=' + tx.txHash);
+      continue; // Skip — don't credit sub-minimum deposits
+    }
 
     await creditDeposit(user_id, chain, token, tx.amount, tx.txHash, amountUsd);
+    // Auto-sweep: move funds to hot wallet
+    autoSweep(user_id, chain, token, tx.amount).catch(e => 
+      console.warn('[AutoSweep] Non-fatal error:', e.message)
+    );
   }
 }
 

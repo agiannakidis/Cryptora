@@ -5,6 +5,21 @@
  */
 const https = require('https');
 const http = require('http');
+const fs = require('fs');
+const path = require('path');
+
+// Load blocked countries from config file (can be updated via admin panel)
+function getBlockedCountries() {
+  try {
+    const cfgPath = path.join(__dirname, '../../geo-config.json');
+    if (fs.existsSync(cfgPath)) {
+      const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+      if (!cfg.enabled) return new Set(); // geo-block disabled
+      return new Set(cfg.blocked_countries || []);
+    }
+  } catch {}
+  return new Set(['US','GB','AU','FR','DE','NL','IT','ES','BE','PL']);
+}
 
 // Countries to BLOCK (add/remove as needed)
 const BLOCKED_COUNTRIES = new Set([
@@ -69,14 +84,27 @@ function getClientIp(req) {
 
 // Middleware factory
 function geoBlock(options = {}) {
-  const blocked = options.countries ? new Set(options.countries) : BLOCKED_COUNTRIES;
+  const blocked = options.countries ? new Set(options.countries) : getBlockedCountries();
   const bypassPaths = options.bypassPaths || ['/api/auth/login', '/api/auth/register', '/health'];
 
   return async function geoBlockMiddleware(req, res, next) {
     // Bypass for health checks and admin
-    const path = req.path || req.url || '';
+    const path = req.originalUrl || req.path || req.url || '';
     if (bypassPaths.some(p => path.startsWith(p))) return next();
     if (path.startsWith('/api/admin') || path.startsWith('/admin')) return next();
+    // Also bypass for nested admin routes like /api/crypto/admin, /api/chat/admin, etc.
+    if (path.includes('/admin/')) return next();
+
+    // Bypass for authenticated users (valid JWT token) — geo-block only for new registrations
+    const authHeader = req.headers['authorization'] || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    if (token) {
+      try {
+        const jwt = require('jsonwebtoken');
+        jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret_change_in_production');
+        return next(); // authenticated user — let them through
+      } catch (_) {} // invalid token — fall through to geo-check
+    }
 
     const ip = getClientIp(req);
 

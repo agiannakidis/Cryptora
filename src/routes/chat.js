@@ -67,6 +67,12 @@ router.post('/send', async (req, res) => {
     const { session_id, message } = req.body;
     if (!session_id || !message?.trim()) return res.status(400).json({ error: 'Missing fields' });
 
+    // Check session still exists (admin may have deleted it)
+    const session = await queryOne('SELECT id FROM chat_sessions WHERE id = $1', [session_id]);
+    if (!session) {
+      return res.status(404).json({ error: 'session_deleted' });
+    }
+
     const msg = await queryOne(
       `INSERT INTO chat_messages (session_id, sender, message) VALUES ($1, 'user', $2) RETURNING *`,
       [session_id, message.trim().slice(0, 2000)]
@@ -131,10 +137,17 @@ router.post('/admin/reply', authMiddleware, async (req, res) => {
 });
 
 // ── PUT /api/chat/admin/sessions/:id/close ───────────────────────────────
-router.put('/admin/sessions/:id/close', authMiddleware, async (req, res) => {
+router.put('/admin/sessions/:id/read', authMiddleware, async (req, res) => {
+  const { query } = require('../pgdb');
+  await query('UPDATE chat_sessions SET unread_admin = 0 WHERE id = $1', [req.params.id]);
+  res.json({ ok: true });
+});
+
+router.delete('/admin/sessions/:id', authMiddleware, async (req, res) => {
   try {
     if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
-    await query(`UPDATE chat_sessions SET status = 'closed' WHERE id = $1`, [req.params.id]);
+    await query('DELETE FROM chat_messages WHERE session_id = $1', [req.params.id]);
+    await query('DELETE FROM chat_sessions WHERE id = $1', [req.params.id]);
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: 'Server error' });

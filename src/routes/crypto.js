@@ -12,6 +12,33 @@ const { getUserAddress, getPrivateKey } = require('../crypto/wallet');
 const { processWithdrawal } = require('../crypto/withdraw');
 const { getPrices } = require('../crypto/monitor');
 const { CHAINS } = require('../crypto/config');
+// ── Minimum deposit/withdrawal limits (covers network fees + profit margin) ────
+const MIN_LIMITS = {
+  deposit: {
+    TRX:     { USDT: 1,   USDC: 1,   TRX:  5  },
+    ETH:     { USDT: 5,   USDC: 5,   ETH:  10 },
+    BSC:     { USDT: 1,   USDC: 1,   BNB:  5  },
+    POLYGON: { USDT: 1,   USDC: 1,   MATIC: 1 },
+    BTC:     { BTC:  5  },
+    LTC:     { LTC:  5  },
+    SOL:     { SOL:  2  },
+    XRP:     { XRP:  2  },
+    TON:     { TON:  2  },
+  },
+  withdrawal: {
+    TRX:     { USDT: 5,   USDC: 5,   TRX:  5  },
+    ETH:     { USDT: 10,  USDC: 10,  ETH:  20 },
+    BSC:     { USDT: 5,   USDC: 5,   BNB:  5  },
+    POLYGON: { USDT: 2,   USDC: 2,   MATIC: 2 },
+    BTC:     { BTC:  5  },
+    LTC:     { LTC:  5  },
+    SOL:     { SOL:  2  },
+    XRP:     { XRP:  2  },
+    TON:     { TON:  2  },
+  },
+};
+
+
 const { queryOne, queryAll, query, transaction } = require('../pgdb');
 const { queryAll: chQueryAll, queryOne: chQueryOne } = require('../chdb');
 
@@ -91,14 +118,15 @@ router.post('/withdraw', authenticate, async (req, res) => {
   const priceKey = (token === 'USDT' || token === 'USDC') ? token : chainConfig.symbol;
   const amountUsd = amountNum * (prices[priceKey] || 0);
 
-  if (amountUsd < 1) return res.status(400).json({ error: 'Minimum withdrawal is $1' });
+  const wdMin = MIN_LIMITS.withdrawal[chain]?.[token] ?? 10;
+  if (amountUsd < wdMin) return res.status(400).json({ error: `Minimum withdrawal is $${wdMin} USD` });
 
   // RG: Self-exclusion check before withdrawal
   const rgExclusion = await checkSelfExclusion(req.user.id);
   if (rgExclusion.blocked) return res.status(403).json({ error: rgExclusion.reason });
 
   // 2FA: Check TOTP if enabled
-  const twoFaUser = await queryOne('SELECT totp_enabled, totp_secret FROM users WHERE id = ', [req.user.id]);
+  const twoFaUser = await queryOne('SELECT totp_enabled, totp_secret FROM users WHERE id = $1', [req.user.id]);
   if (twoFaUser && twoFaUser.totp_enabled) {
     const { totp_code } = req.body;
     if (!totp_code) return res.status(400).json({ error: '2FA code required', requires2fa: true });
@@ -142,15 +170,10 @@ router.post('/withdraw', authenticate, async (req, res) => {
     throw e;
   }
 
-  // Process async — refund on failure
-  processWithdrawal(withdrawalId).catch(async (err) => {
-    await query('UPDATE users SET balance = balance + $1 WHERE id = $2', [amountUsd, req.user.id]);
-    console.error(`Withdrawal refunded for user ${req.user.id}: ${err.message}`);
-  });
-
+  // Withdrawal stays PENDING until admin approves — no auto-processing
   res.json({
     success: true, withdrawalId,
-    message: 'Withdrawal processing',
+    message: 'Withdrawal submitted, pending admin approval',
     amountCrypto: amountNum, amountUsd: amountUsd.toFixed(2),
     chain, token,
   });
@@ -174,6 +197,9 @@ router.get('/admin/stats', authenticate, async (req, res) => {
     pendingWithdrawals: pendingWd?.count || 0,
     totalDeposited: totalDep?.total || 0,
     totalWithdrawn: totalWd?.total || 0,
+    hotWalletTRX: process.env.HOT_WALLET_TRX_ADDRESS || '',
+    hotWalletEVM: process.env.HOT_WALLET_EVM_ADDRESS || '',
+    hotWalletBTC: process.env.HOT_WALLET_BTC_ADDRESS || '',
   });
 });
 
@@ -182,14 +208,25 @@ router.get('/admin/stats', authenticate, async (req, res) => {
 // GET /admin/withdrawals?status=pending (frontend compat alias)
 router.get('/admin/withdrawals', authenticate, async (req, res) => {
   try {
-    const status = req.query.status || 'pending';
+    const statusFilter = req.query.status || null;
     const limit = parseInt(req.query.limit) || 100;
-    const rows = await queryAll(
-      `SELECT cw.*, u.email FROM crypto_withdrawals cw
-       LEFT JOIN users u ON u.id = cw.user_id
-       WHERE cw.status = $1 ORDER BY cw.created_date DESC LIMIT $2`,
-      [status, limit]
-    );
+    let rows;
+    if (statusFilter) {
+      rows = await queryAll(
+        `SELECT cw.*, u.email FROM crypto_withdrawals cw
+         LEFT JOIN users u ON u.id = cw.user_id
+         WHERE cw.status = $1 ORDER BY cw.created_date DESC LIMIT $2`,
+        [statusFilter, limit]
+      );
+    } else {
+      // Default: show pending + processing (active withdrawals needing attention)
+      rows = await queryAll(
+        `SELECT cw.*, u.email FROM crypto_withdrawals cw
+         LEFT JOIN users u ON u.id = cw.user_id
+         WHERE cw.status IN ('pending','processing') ORDER BY cw.created_date DESC LIMIT $1`,
+        [limit]
+      );
+    }
     res.json({ withdrawals: rows });
   } catch (e) {
     console.error('[admin withdrawals]', e.message);
@@ -207,26 +244,30 @@ router.get('/admin/withdrawals/pending', authenticate, async (req, res) => {
   res.json({ withdrawals: rows });
 });
 
-// ── Admin: approve/reject withdrawal ─────────────────────────────────────────
+// ── Admin: approve withdrawal ─────────────────────────────────────────────────
 
-router.post('/withdraw', authenticate, async (req, res) => {
+router.post('/admin/withdrawals/:id/approve', authenticate, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
   const w = await queryOne('SELECT * FROM crypto_withdrawals WHERE id = $1', [req.params.id]);
   if (!w || w.status !== 'pending') return res.status(400).json({ error: 'Not found or not pending' });
 
-  await query('UPDATE crypto_withdrawals SET status=$1, approved_by=$2 WHERE id=$3',
-    ['processing', req.user.email, req.params.id]);
+  // Mark as approved (keep pending so processWithdrawal can pick it up)
+  await query('UPDATE crypto_withdrawals SET approved_by=$1 WHERE id=$2',
+    [req.user.email, req.params.id]);
 
+  // processWithdrawal will set status to processing/completed/failed
   processWithdrawal(req.params.id).catch(async (err) => {
     await query('UPDATE users SET balance = balance + $1 WHERE id = $2', [w.amount_usd, w.user_id]);
     await query('UPDATE crypto_withdrawals SET status=$1, error=$2 WHERE id=$3',
       ['failed', err.message, req.params.id]);
   });
 
-  res.json({ success: true, message: 'Processing withdrawal' });
+  res.json({ success: true, message: 'Withdrawal approved, processing' });
 });
 
-router.post('/withdraw', authenticate, async (req, res) => {
+// ── Admin: reject withdrawal ──────────────────────────────────────────────────
+
+router.post('/admin/withdrawals/:id/reject', authenticate, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
   const w = await queryOne('SELECT * FROM crypto_withdrawals WHERE id = $1', [req.params.id]);
   if (!w || w.status !== 'pending') return res.status(400).json({ error: 'Not found or not pending' });
@@ -237,7 +278,7 @@ router.post('/withdraw', authenticate, async (req, res) => {
       ['rejected', req.body.reason || 'Rejected by admin', req.user.email, req.params.id]);
   });
 
-  res.json({ success: true, message: 'Withdrawal rejected, funds returned' });
+  res.json({ success: true, message: 'Withdrawal rejected, funds returned to user' });
 });
 
 // ── Admin: all addresses ──────────────────────────────────────────────────────
@@ -252,6 +293,32 @@ router.get('/admin/addresses', authenticate, async (req, res) => {
   res.json({ addresses: rows });
 });
 
+
+// ── Admin: my wallets — addresses only (fast) ───────────────────────────────
+router.get('/admin/my-wallets', authenticate, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+
+  const rows = await queryAll(
+    'SELECT chain, token, address, derivation_index FROM crypto_addresses WHERE user_id = $1 ORDER BY chain, token',
+    [req.user.id]
+  );
+
+  const wallets = rows.map(r => ({
+    chain: r.chain,
+    token: r.token,
+    address: r.address,
+    isHot: r.address === process.env.HOT_WALLET_TRX_ADDRESS ||
+           r.address === process.env.HOT_WALLET_EVM_ADDRESS ||
+           r.address === process.env.HOT_WALLET_BTC_ADDRESS,
+  }));
+
+  res.json({
+    wallets,
+    hotWalletTRX: process.env.HOT_WALLET_TRX_ADDRESS || '',
+    hotWalletEVM: process.env.HOT_WALLET_EVM_ADDRESS || '',
+    hotWalletBTC: process.env.HOT_WALLET_BTC_ADDRESS || '',
+  });
+});
 
 // ── Admin: sweep — create withdrawal from admin's own balance
 router.post('/admin/sweep', authenticate, async (req, res) => {
@@ -345,7 +412,7 @@ router.get('/admin/wallet-totals', authenticate, async (req, res) => {
 
         for (const address of addresses) {
           try {
-            await new Promise(r => setTimeout(r, 500)); // sequential + delay
+            await new Promise(r => setTimeout(r, 1200)); // sequential + delay (TronGrid rate limit)
             let bal = 0;
             if (token === 'TRX') {
               const b = await tronWeb.trx.getBalance(address);
@@ -565,6 +632,23 @@ router.post('/admin/sweep-all', authenticate, async (req, res) => {
           const r = await tronChain.sendTRX(privateKey, to_address, amountToSend);
           txHash = r.txHash;
         } else {
+          // Auto-fuel: if address doesn't have enough TRX for gas, send from admin wallet
+          const TRX_GAS_RESERVE = 15; // 15 TRX needed to send TRC-20 safely
+          const currentTRX = await tronChain.getTRXBalance(row.address);
+          if (currentTRX < TRX_GAS_RESERVE) {
+            const trxNeeded = TRX_GAS_RESERVE - currentTRX + 2; // +2 buffer
+            console.log(`[sweep-all] Auto-fueling ${row.address} with ${trxNeeded} TRX for gas...`);
+            // Get admin's TRX private key (admin has TRX wallet at index 0)
+            const adminUser = await require('../pgdb').queryOne(
+              "SELECT id FROM users WHERE role='admin' LIMIT 1"
+            );
+            if (adminUser) {
+              const adminTrxKey = await getPrivateKey(adminUser.id, 'TRX', 'USDT');
+              const fuelTx = await tronChain.sendTRX(adminTrxKey, row.address, trxNeeded);
+              console.log(`[sweep-all] Fuel tx: ${fuelTx.txHash} — waiting 12s for confirmation...`);
+              await new Promise(r => setTimeout(r, 12000)); // wait for block confirmation
+            }
+          }
           const contract = chainConfig.tokenContracts?.[token];
           const r = await tronChain.sendTRC20(privateKey, to_address, amountToSend, contract);
           txHash = r.txHash;
@@ -635,7 +719,7 @@ router.get('/admin/user-wallets/:userId', authenticate, async (req, res) => {
           headers: apiKey ? { 'TRON-PRO-API-KEY': apiKey } : {},
           privateKey: 'a'.repeat(64),
         });
-        await new Promise(r => setTimeout(r, 400));
+        await new Promise(r => setTimeout(r, 1200));
         if (token === 'TRX') {
           balance = ((await tw.trx.getBalance(address)) || 0) / 1e6;
         } else {
@@ -666,7 +750,7 @@ router.get('/admin/user-wallets/:userId', authenticate, async (req, res) => {
   res.json({ ok: true, wallets: results, totalUsd: parseFloat(totalUsd.toFixed(2)) });
 });
 
-module.exports = router;
+
 
 // ── 2FA for Withdrawals (TOTP) ─────────────────────────────────────────────────
 
@@ -770,3 +854,10 @@ router.get('/2fa/status', authenticate, async (req, res) => {
     res.status(500).json({ error: 'Failed to get 2FA status' });
   }
 });
+
+// ── GET /limits ──────────────────────────────────────────────────────────────
+router.get('/limits', async (req, res) => {
+  res.json({ min: MIN_LIMITS });
+});
+
+module.exports = router;

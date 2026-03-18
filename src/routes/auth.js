@@ -67,8 +67,8 @@ router.post('/register', async (req, res) => {
     VALUES ($1,$2,$3,$4,'player',0,'USD',false,$5,$6)
   `, [id, email.toLowerCase(), password_hash, name || '', verifyCode, verifyExpires]);
 
-  if (req.body.ref_code) {
-    try { trackRegistration(id, email.toLowerCase(), req.body.ref_code); } catch {}
+  if (req.body.ref_code || req.body.ref) {
+    try { trackRegistration(id, email.toLowerCase(), req.body.ref_code || req.body.ref); } catch {}
   }
 
   sendVerificationCode(email.toLowerCase(), verifyCode)
@@ -222,7 +222,7 @@ setInterval(async () => {
 router.get('/telegram/init', async (req, res) => {
   try {
     const state = crypto.randomBytes(16).toString('hex');
-    const refCode = req.query.ref_code || '';
+    const refCode = req.query.ref_code || req.query.ref || '';
     await query(
       'INSERT INTO tg_auth_states (state, ref_code) VALUES ($1, $2)',
       [state, refCode]
@@ -353,7 +353,7 @@ router.post('/sms/send', async (req, res) => {
     code,
     expires: Date.now() + 10 * 60 * 1000,
     attempts: (existing?.attempts || 0) + 1,
-    refCode: req.body.ref_code || '',
+    refCode: req.body.ref_code || req.body.ref || '',
   });
 
   const login = process.env.SMSC_LOGIN;

@@ -90,16 +90,76 @@ router.post('/:id/claim', authMiddleware, async (req, res) => {
     let bonusAmount = 0;
     let message = '';
     const wagerMultiplier = parseFloat(promo.wagering_requirement || 30);
+    const bonusValue = parseFloat(promo.bonus_value || 0);
     const curUser = await queryOne('SELECT * FROM users WHERE id = $1', [user.id]);
 
     switch (promo.bonus_type) {
-      case 'welcome_bonus':  bonusAmount = 50;  message = `Welcome! $${bonusAmount} bonus added. Wager ${wagerMultiplier}x to unlock.`; break;
-      case 'free_spins':     bonusAmount = Math.round((parseFloat(promo.bonus_value||20)*0.20)*100)/100; message = `${promo.bonus_value||20} Free Spins credited! ($${bonusAmount}). Wager ${wagerMultiplier}x to unlock.`; break;
-      case 'cashback':       bonusAmount = 10;  message = `Cashback of $${bonusAmount} credited! Wager ${wagerMultiplier}x to unlock.`; break;
-      case 'deposit_match':  bonusAmount = Math.round(Math.max(parseFloat(curUser.balance)*0.1,5)*100)/100; message = `Deposit match of $${bonusAmount} credited! Wager ${wagerMultiplier}x to unlock.`; break;
-      case 'tournament':     bonusAmount = 0;   message = `Registered for ${promo.title}!`; break;
-      case 'vip':            bonusAmount = 25;  message = `VIP bonus of $${bonusAmount} credited! Wager ${wagerMultiplier}x to unlock.`; break;
-      default:               bonusAmount = parseFloat(promo.bonus_value||10); message = `Bonus of $${bonusAmount} credited!`;
+      case 'welcome_bonus': {
+        // Real deposit match: bonus_value% of last deposit, capped at $500
+        const lastDeposit = await queryOne(
+          `SELECT amount FROM tx_idempotency WHERE user_email=$1 AND type='deposit' ORDER BY created_at DESC LIMIT 1`,
+          [user.email]
+        );
+        if (!lastDeposit) return res.status(400).json({ error: 'Make a deposit first to claim the welcome bonus' });
+        const depositAmt = parseFloat(lastDeposit.amount);
+        const minDep = parseFloat(promo.min_deposit || 20);
+        if (depositAmt < minDep) return res.status(400).json({ error: `Minimum deposit $${minDep} required` });
+        const pct = bonusValue > 0 ? bonusValue / 100 : 2; // default 200%
+        bonusAmount = Math.min(Math.round(depositAmt * pct * 100) / 100, 500);
+        message = `Welcome! ${bonusValue || 200}% deposit match — $${bonusAmount.toFixed(2)} bonus. Wager ${wagerMultiplier}x to unlock.`;
+        break;
+      }
+      case 'deposit_match': {
+        // deposit_match: bonus_value% of last deposit, capped at $1000
+        const lastDeposit = await queryOne(
+          `SELECT amount FROM tx_idempotency WHERE user_email=$1 AND type='deposit' ORDER BY created_at DESC LIMIT 1`,
+          [user.email]
+        );
+        if (!lastDeposit) return res.status(400).json({ error: 'Make a deposit first to claim this bonus' });
+        const depositAmt = parseFloat(lastDeposit.amount);
+        const minDep = parseFloat(promo.min_deposit || 20);
+        if (depositAmt < minDep) return res.status(400).json({ error: `Minimum deposit $${minDep} required` });
+        const pct = bonusValue > 0 ? bonusValue / 100 : 1;
+        bonusAmount = Math.min(Math.round(depositAmt * pct * 100) / 100, 1000);
+        message = `Deposit match: $${bonusAmount.toFixed(2)} bonus added! Wager ${wagerMultiplier}x to unlock.`;
+        break;
+      }
+      case 'cashback': {
+        // Real cashback: bonusValue% of net losses in last 24h
+        const lossRow = await queryOne(
+          `SELECT COALESCE(SUM(CASE WHEN type='bet' THEN amount ELSE -amount END),0) as net_loss
+           FROM tx_idempotency
+           WHERE user_email=$1 AND type IN ('bet','win') AND created_at > NOW() - INTERVAL '24 hours'`,
+          [user.email]
+        );
+        const netLoss = Math.max(parseFloat(lossRow?.net_loss || 0), 0);
+        if (netLoss < 1) return res.status(400).json({ error: 'No losses in last 24 hours to apply cashback' });
+        const pct = bonusValue > 0 ? bonusValue / 100 : 0.10;
+        bonusAmount = Math.min(Math.round(netLoss * pct * 100) / 100, 500);
+        message = `Cashback ${bonusValue || 10}% — $${bonusAmount.toFixed(2)} on $${netLoss.toFixed(2)} losses. Wager ${wagerMultiplier}x to unlock.`;
+        break;
+      }
+      case 'free_spins': {
+        // Free spins: bonus_value spins × $0.20 per spin, capped at $100
+        const spins = bonusValue > 0 ? bonusValue : 20;
+        bonusAmount = Math.min(Math.round(spins * 0.20 * 100) / 100, 100);
+        message = `${spins} Free Spins — $${bonusAmount.toFixed(2)} bonus credited! Wager ${wagerMultiplier}x to unlock.`;
+        break;
+      }
+      case 'tournament': {
+        bonusAmount = 0;
+        message = `You are registered for ${promo.title}!`;
+        break;
+      }
+      case 'vip': {
+        bonusAmount = bonusValue > 0 ? bonusValue : 25;
+        message = `VIP bonus of $${bonusAmount.toFixed(2)} credited! Wager ${wagerMultiplier}x to unlock.`;
+        break;
+      }
+      default: {
+        bonusAmount = bonusValue > 0 ? bonusValue : 10;
+        message = `Bonus of $${bonusAmount.toFixed(2)} credited! Wager ${wagerMultiplier}x to unlock.`;
+      }
     }
 
     // ON CONFLICT: DB-level unique constraint prevents race condition double-claim

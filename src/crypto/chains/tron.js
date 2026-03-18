@@ -16,17 +16,51 @@ function getTronWeb(privateKey) {
   });
 }
 
+// Retry wrapper with exponential backoff for rate-limit errors (429)
+async function withRetry(fn, retries = 4, delayMs = 800) {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const is429 = err?.message?.includes('429') || err?.response?.status === 429
+        || String(err).includes('429') || err?.statusCode === 429;
+      if (is429 && i < retries) {
+        const wait = delayMs * Math.pow(2, i); // 800, 1600, 3200, 6400ms
+        await new Promise(r => setTimeout(r, wait));
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
 async function getTRXBalance(address) {
-  const tw = getTronWeb();
-  const balance = await tw.trx.getBalance(address);
-  return balance / 1e6;
+  return withRetry(async () => {
+    const tw = getTronWeb();
+    const balance = await tw.trx.getBalance(address);
+    return (balance || 0) / 1e6;
+  });
 }
 
 async function getTRC20Balance(address, contractAddress) {
-  const tw = getTronWeb();
-  const contract = await tw.contract().at(contractAddress);
-  const balance = await contract.balanceOf(address).call();
-  return Number(balance) / 1e6;
+  try {
+    return await withRetry(async () => {
+      const tw = getTronWeb();
+      // Check if account exists first (unactivated accounts have no TRX and can't call contracts)
+      const accountInfo = await tw.trx.getAccount(address);
+      if (!accountInfo || !accountInfo.address) return 0; // account not activated = 0 balance
+
+      const contract = await tw.contract().at(contractAddress);
+      const balance = await contract.balanceOf(address).call();
+      return Number(balance) / 1e6;
+    });
+  } catch (err) {
+    const msg = String(err?.message || err);
+    if (msg.includes('does not exist') || msg.includes('account not found') || msg.includes('CONTRACT_VALIDATE_ERROR')) {
+      return 0; // unactivated account = 0 balance
+    }
+    throw err;
+  }
 }
 
 // Get incoming TRX transactions

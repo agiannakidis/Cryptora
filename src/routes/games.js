@@ -33,6 +33,14 @@ router.get('/by-category', async (req, res) => {
       { key: 'top',         label: 'Top' },
       { key: 'featured',    label: 'Featured' },
       { key: 'slots',       label: 'All Slots' },
+      // RGS provider rows
+      { key: 'provider:Pragmatic Play RGS', label: 'Pragmatic Play RGS' },
+      { key: 'provider:NetEnt RGS',         label: 'NetEnt RGS' },
+      { key: 'provider:EGT RGS',            label: 'EGT RGS' },
+      { key: 'provider:Novomatic RGS',      label: 'Novomatic RGS' },
+      { key: 'provider:Amatic RGS',         label: 'Amatic RGS' },
+      { key: 'provider:Quickspin RGS',      label: 'Quickspin RGS' },
+      { key: 'provider:Merkur RGS',         label: 'Merkur RGS' },
     ];
 
     const result = [];
@@ -50,6 +58,16 @@ router.get('/by-category', async (req, res) => {
           ORDER BY gs.game_id, gs.created_date DESC
           LIMIT $2
         `, [userId, limit]);
+        games = rows;
+      } else if (cat.key.startsWith('provider:')) {
+        const provName = cat.key.slice('provider:'.length);
+        const rows = await queryAll(`
+          SELECT id, title, provider, thumbnail, categories, has_jackpot, is_featured, sort_order
+          FROM games
+          WHERE is_enabled = true AND provider = $1
+          ORDER BY play_count DESC, created_date DESC
+          LIMIT $2
+        `, [provName, Math.min(limit, 40)]);
         games = rows;
       } else {
         const rows = await queryAll(`
