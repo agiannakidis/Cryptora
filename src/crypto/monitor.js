@@ -205,9 +205,9 @@ async function checkAddress(row) {
       }
     } else if (chain === 'TON') {
       incoming = await tonChain.getIncomingTransactions(address);
-    } else if (chain === 'SOL' && token === 'SOL') {
+    } else if (chain === 'SOL' && token === 'SOL') { // SOL: monitored via mainnet-beta RPC
       incoming = await solanaChain.getIncomingTransactions(address);
-    } else if (chain === 'XRP') {
+    } else if (chain === 'XRP') { // XRP: monitored via s1.ripple.com
       incoming = await xrpChain.getIncomingTransactions(address);
     }
   } catch (e) {

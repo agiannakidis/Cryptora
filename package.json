@@ -5,7 +5,7 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
-    "test": "node --experimental-vm-modules node_modules/.bin/jest --testPathPattern=tests/",
+    "test": "node --experimental-vm-modules node_modules/.bin/jest --testPathPatterns=tests/",
     "migrate": "node src/migrate.js"
   },
   "dependencies": {
@@ -39,5 +39,8 @@
     "uuid": "^9.0.1",
     "ws": "^8.19.0",
     "xrpl": "^4.6.0"
+  },
+  "devDependencies": {
+    "jest": "^30.3.0"
   }
 }

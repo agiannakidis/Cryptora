@@ -4,6 +4,13 @@
  */
 require('dotenv').config();
 
+if (process.env.NODE_ENV === 'production' && !process.env.ALLOW_MIGRATE) {
+  console.error('[MIGRATE] Refusing to run in production without ALLOW_MIGRATE=1');
+  process.exit(1);
+}
+console.warn('[MIGRATE] This script migrates from SQLite to PostgreSQL. Run only once.');
+
+
 const Database = require('better-sqlite3');
 const path = require('path');
 const { Pool } = require('pg');

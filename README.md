@@ -98,6 +98,47 @@ tests/
 └── startup.test.js   # Environment and module sanity checks
 ```
 
+
+
+## Database Setup
+
+### PostgreSQL Setup
+```bash
+createdb casino_db
+# No schema.sql — tables auto-created by pgdb.js initSchema() on first startup
+# Run: node src/index.js and tables will be created automatically
+# If manual schema is needed: pg_dump from a running instance
+```
+
+**Note:** `pgdb.js` does NOT have auto-create. Run schema manually if needed:
+```bash
+# If a schema.sql is provided:
+psql casino_db < schema.sql
+```
+
+### ClickHouse Setup
+```sql
+CREATE DATABASE casino;
+-- Tables auto-created by chdb.js on first run
+```
+
+### SQLite Migration (one-time, from old version)
+```bash
+NODE_ENV=development ALLOW_MIGRATE=1 node src/migrate.js
+```
+
+## Fresh Clone Startup
+
+```bash
+git clone https://github.com/agiannakidis/Cryptora
+cd Cryptora
+npm install
+cp .env.example .env
+# Edit .env with your values (JWT_SECRET, PG_*, MASTER_MNEMONIC, etc.)
+node src/index.js
+# On first run: connect to PostgreSQL — ensure DB exists and schema is loaded
+```
+
 ## Security Notes
 
 - `JWT_SECRET` must be set via environment — no hardcoded fallbacks

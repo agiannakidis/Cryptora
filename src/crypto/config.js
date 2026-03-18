@@ -21,7 +21,8 @@ const CHAINS = {
     decimals: 18,
     confirmations: 12,
     derivationPath: "m/44'/60'/0'/0",
-    rpc: 'https://ethereum.publicnode.com',
+    // PRODUCTION: replace with private RPC (Alchemy/Infura/QuickNode)
+    rpc: 'https://ethereum.publicnode.com', // fallback: reliable public node
     tokens: ['ETH', 'USDT', 'USDC'],
     tokenContracts: {
       USDT: '0xdAC17F958D2ee523a2206206994597C13D831ec7',
@@ -37,7 +38,8 @@ const CHAINS = {
     decimals: 18,
     confirmations: 15,
     derivationPath: "m/44'/60'/0'/0",
-    rpc: 'https://bsc-rpc.publicnode.com',
+    // PRODUCTION: replace with private RPC (Alchemy/Infura/QuickNode)
+    rpc: 'https://bsc-dataseed1.binance.org',
     tokens: ['BNB', 'USDT', 'USDC'],
     tokenContracts: {
       USDT: '0x55d398326f99059fF775485246999027B3197955',
@@ -53,7 +55,8 @@ const CHAINS = {
     decimals: 18,
     confirmations: 20,
     derivationPath: "m/44'/60'/0'/0",
-    rpc: 'https://polygon-bor-rpc.publicnode.com',
+    // PRODUCTION: replace with private RPC (Alchemy/Infura/QuickNode)
+    rpc: 'https://polygon-rpc.com',
     tokens: ['MATIC', 'USDT', 'USDC'],
     tokenContracts: {
       USDT: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F',
@@ -69,6 +72,7 @@ const CHAINS = {
     decimals: 18,
     confirmations: 20,
     derivationPath: "m/44'/60'/0'/0",
+    // PRODUCTION: replace with private RPC (Alchemy/Infura/QuickNode) — ARBITRUM currently disabled
     rpc: 'https://arbitrum-one-rpc.publicnode.com',
     tokens: ['ETH', 'USDC', 'USDT'],
     tokenContracts: {
@@ -99,10 +103,8 @@ const CHAINS = {
     decimals: 9,
     confirmations: 1,
     api: 'https://toncenter.com/api/v2',
-    tokens: ['TON', 'USDT'],
-    tokenContracts: {
-      USDT: 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs',
-    },
+    tokens: ['TON'], // TON USDT removed — not monitored. Add when toncenter USDT indexing is implemented.
+    tokenContracts: {},
   },
   SOL: {
     id: 'SOL',
