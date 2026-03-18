@@ -1,13 +1,18 @@
+/**
+ * Cryptora — Jackpot Guard v1
+ * Intercepts failed /api/jackpot responses and returns safe defaults
+ * to prevent React hydration crashes when the jackpot API is unavailable.
+ */
 // jackpot-guard.js — prevent crash when jackpot API returns error
 (function() {
-  if (location.pathname.startsWith('/admin')) return;
-    'use strict';
+  if (location.pathname.startsWith("/admin")) return;
+    "use strict";
   var _origFetch = window.fetch;
   window.fetch = function(input, init) {
-    var url = typeof input === 'string' ? input : (input && input.url) || '';
+    var url = typeof input === "string" ? input : (input && input.url) || "";
     return _origFetch.apply(this, arguments).then(function(response) {
-      if (url.includes('/api/jackpot') && !response.ok) {
-        // Return a safe default jackpot object so React doesn't crash
+      if (url.includes("/api/jackpot") && !response.ok) {
+        // Return a safe default jackpot object so React does not crash
         var safeBody = JSON.stringify({
           amount: 10000,
           seed_amount: 5000,
@@ -20,7 +25,7 @@
         });
         return new Response(safeBody, {
           status: 200,
-          headers: { 'Content-Type': 'application/json' }
+          headers: { "Content-Type": "application/json" }
         });
       }
       return response;
