@@ -67,6 +67,9 @@ router.get('/deposit-address', authenticate, async (req, res) => {
   if (!chainConfig) return res.status(400).json({ error: `Unsupported chain: ${chain}` });
   if (!chainConfig.tokens.includes(token)) return res.status(400).json({ error: `Token ${token} not supported on ${chain}` });
 
+  // ARBITRUM monitoring not implemented — reject deposits
+  if (chain === 'ARBITRUM') return res.status(400).json({ error: 'ARBITRUM deposits are currently disabled. Supported chains: TRX, ETH, BSC, POLYGON, BTC, LTC, SOL, XRP, TON' });
+
   try {
     const address = await getUserAddress(req.user.id, chain, token);
     res.json({ address, chain, token, network: chainConfig.name, confirmations: chainConfig.confirmations });
@@ -110,6 +113,9 @@ router.post('/withdraw', authenticate, async (req, res) => {
   const chainConfig = CHAINS[chain];
   if (!chainConfig) return res.status(400).json({ error: `Unsupported chain: ${chain}` });
   if (!chainConfig.tokens.includes(token)) return res.status(400).json({ error: `Token ${token} not supported on ${chain}` });
+
+  // ARBITRUM monitoring not implemented — reject withdrawals
+  if (chain === 'ARBITRUM') return res.status(400).json({ error: 'ARBITRUM withdrawals are currently disabled. Supported chains: TRX, ETH, BSC, POLYGON, BTC, LTC, SOL, XRP, TON' });
 
   const amountNum = parseFloat(amount);
   if (isNaN(amountNum) || amountNum <= 0) return res.status(400).json({ error: 'Invalid amount' });

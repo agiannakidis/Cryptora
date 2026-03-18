@@ -8,7 +8,7 @@ let sendVerificationCode;
 try { ({ sendVerificationCode } = require('../email')); } catch(e) { sendVerificationCode = async (email, code) => { console.log('[EMAIL-FALLBACK] code for', email, ':', code); }; }
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const JWT_SECRET = process.env.JWT_SECRET || '3135b75346a97155548cc44066544d15ad492e688ed87a173dee33916e626087';
+const JWT_SECRET = process.env.JWT_SECRET; if (!JWT_SECRET) { throw new Error('[FATAL] JWT_SECRET env var not set'); }
 
 function affAuth(req, res, next) {
   const header = req.headers.authorization || '';

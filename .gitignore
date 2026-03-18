@@ -1,3 +1,9 @@
 node_modules/
 .env
 *.log
+
+# DB artifacts
+*.db
+*.wal
+*.shm
+casino.db

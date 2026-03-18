@@ -4,7 +4,9 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "node --watch src/index.js"
+    "dev": "node --watch src/index.js",
+    "test": "node --experimental-vm-modules node_modules/.bin/jest --testPathPattern=tests/",
+    "migrate": "node src/migrate.js"
   },
   "dependencies": {
     "@clickhouse/client": "^1.17.0",

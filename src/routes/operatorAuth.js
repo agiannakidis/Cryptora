@@ -8,7 +8,7 @@ const nodemailer = require('nodemailer');
 const { queryOne, queryAll, query, transaction } = require('../pgdb');
 const { insert: chInsert } = require('../chdb');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'casino-secret-2026';
+const JWT_SECRET = process.env.JWT_SECRET; if (!JWT_SECRET) { throw new Error('[FATAL] JWT_SECRET env var not set'); }
 
 // Mirror operator transaction to ClickHouse for analytics (fire-and-forget)
 function chMirrorOpTx({ id, operator_id, operator_username, player_id, player_username, type, amount, note }) {

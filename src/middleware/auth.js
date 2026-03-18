@@ -33,7 +33,7 @@ async function isBlacklisted(token) {
   return false;
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || 'change-this-secret-in-production';
+const JWT_SECRET = process.env.JWT_SECRET; if (!JWT_SECRET) { throw new Error('[FATAL] JWT_SECRET env var not set'); }
 
 const NUMERIC_FIELDS = [
   'balance','bonus_balance','vip_points','total_wagered',

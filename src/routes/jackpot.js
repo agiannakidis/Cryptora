@@ -39,7 +39,7 @@ router.get('/admin/settings', async (req, res) => {
   try {
     const token = (req.headers.authorization || '').replace('Bearer ', '');
     const jwt = require('jsonwebtoken');
-    const JWT_SECRET = process.env.JWT_SECRET || '3135b75346a97155548cc44066544d15ad492e688ed87a173dee33916e626087';
+    const JWT_SECRET = process.env.JWT_SECRET; if (!JWT_SECRET) return res.status(500).json({error:'Server misconfigured'});
     let payload;
     try { payload = jwt.verify(token, JWT_SECRET); } catch(e) { return res.status(401).json({ error: 'Unauthorized' }); }
     if (payload.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
@@ -67,7 +67,7 @@ router.patch('/admin/settings', async (req, res) => {
   try {
     const token = (req.headers.authorization || '').replace('Bearer ', '');
     const jwt = require('jsonwebtoken');
-    const JWT_SECRET = process.env.JWT_SECRET || '3135b75346a97155548cc44066544d15ad492e688ed87a173dee33916e626087';
+    const JWT_SECRET = process.env.JWT_SECRET; if (!JWT_SECRET) return res.status(500).json({error:'Server misconfigured'});
     let payload;
     try { payload = jwt.verify(token, JWT_SECRET); } catch(e) { return res.status(401).json({ error: 'Unauthorized' }); }
     if (payload.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
@@ -107,7 +107,7 @@ router.get('/my-win', async (req, res) => {
     const token = (req.headers.authorization || '').replace('Bearer ', '');
     if (!token) return res.json({ win: false });
     const jwt = require('jsonwebtoken');
-    const JWT_SECRET = process.env.JWT_SECRET || '3135b75346a97155548cc44066544d15ad492e688ed87a173dee33916e626087';
+    const JWT_SECRET = process.env.JWT_SECRET; if (!JWT_SECRET) return res.status(500).json({error:'Server misconfigured'});
     let payload;
     try { payload = jwt.verify(token, JWT_SECRET); } catch(e) { return res.json({ win: false }); }
 

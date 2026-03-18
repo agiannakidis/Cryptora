@@ -2,7 +2,7 @@ require('dotenv').config();
 
 // ── Startup safety checks ─────────────────────────────────────────────────────
 (function validateEnv() {
-  const REQUIRED = ['JWT_SECRET', 'PG_PASSWORD'];
+  const REQUIRED = ['JWT_SECRET', 'PG_PASSWORD', 'PG_HOST', 'PG_USER', 'PG_DATABASE'];
   const WEAK_VALUES = ['change-this-secret-in-production', 'casino-secret-2026', 'secret'];
   let ok = true;
 

@@ -101,7 +101,7 @@ function geoBlock(options = {}) {
     if (token) {
       try {
         const jwt = require('jsonwebtoken');
-        jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret_change_in_production');
+        jwt.verify(token, process.env.JWT_SECRET);
         return next(); // authenticated user — let them through
       } catch (_) {} // invalid token — fall through to geo-check
     }
