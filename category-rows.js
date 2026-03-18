@@ -100,7 +100,7 @@
         grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
         gap:10px;
       }
-      #cr-filtered-grid .cr-card { width:100%; flex:none; aspect-ratio:3/4; }
+      #cr-filtered-grid .cr-card { width:100%; flex:none; aspect-ratio:216/288; }
       /* Load more button */
       #cr-load-more {
         display:block; margin:24px auto 0;

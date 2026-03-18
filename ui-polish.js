@@ -90,29 +90,6 @@
   }
 
   /* ══════════════════════════════════════════════
-     3. HERO COPY FIX
-  ══════════════════════════════════════════════ */
-  var heroDone = false;
-
-  function fixHero() {
-    if (heroDone) return;
-    try {
-      var els = qsAll('h1, h2');
-      els.forEach(function(el) {
-        if (el.children.length > 0) return;
-        var t = (el.textContent || '').trim();
-        if (/hello my name is cryptora/i.test(t)) {
-          el.textContent = 'Your Crypto Casino';
-          heroDone = true;
-        } else if (/lorem ipsum/i.test(t)) {
-          el.textContent = 'Play, Win, Withdraw Instantly';
-          heroDone = true;
-        }
-      });
-    } catch(e) {}
-  }
-
-  /* ══════════════════════════════════════════════
      4. PROMOTIONS T&C INLINE
   ══════════════════════════════════════════════ */
   var tcDone = [];
@@ -200,7 +177,6 @@
 
   function runAll() {
     fixGameTitles();
-    fixHero();
     injectPromoTCs();
   }
 
@@ -222,12 +198,10 @@
       var origPush = history.pushState;
       history.pushState = function() {
         try { origPush.apply(this, arguments); } catch(e) {}
-        heroDone = false;
-        setTimeout(runAll, 500);
+          setTimeout(runAll, 500);
       };
       window.addEventListener('popstate', function() {
-        heroDone = false;
-        setTimeout(runAll, 500);
+          setTimeout(runAll, 500);
       });
     } catch(e) {}
   }

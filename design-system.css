@@ -1,0 +1,520 @@
+/* ================================================================
+   Cryptora Design System v1.0
+   Single source of truth for all visual tokens and component overrides.
+   Applied over the compiled React bundle via cascade.
+   ================================================================ */
+
+/* ── Design Tokens ─────────────────────────────────────────────── */
+:root {
+  /* Colors */
+  --cr-bg-primary:     #080c14;
+  --cr-bg-card:        #0d1421;
+  --cr-bg-elevated:    #111827;
+  --cr-bg-glass:       rgba(17, 24, 39, 0.85);
+  --cr-border:         rgba(255,255,255,0.07);
+  --cr-border-accent:  rgba(251,191,36,0.35);
+
+  --cr-gold:           #fbbf24;
+  --cr-gold-bright:    #fcd34d;
+  --cr-gold-dim:       rgba(251,191,36,0.12);
+
+  --cr-text-primary:   #f1f5f9;
+  --cr-text-secondary: #94a3b8;
+  --cr-text-muted:     #475569;
+
+  --cr-green:          #10b981;
+  --cr-red:            #ef4444;
+  --cr-blue:           #3b82f6;
+
+  /* Spacing */
+  --cr-radius-sm:  6px;
+  --cr-radius-md:  12px;
+  --cr-radius-lg:  16px;
+  --cr-radius-xl:  20px;
+
+  /* Shadows */
+  --cr-shadow-card:  0 4px 24px rgba(0,0,0,0.4);
+  --cr-shadow-gold:  0 0 20px rgba(251,191,36,0.15);
+  --cr-shadow-modal: 0 20px 60px rgba(0,0,0,0.7);
+
+  /* Typography */
+  --cr-font-xs:   11px;
+  --cr-font-sm:   13px;
+  --cr-font-base: 15px;
+  --cr-font-md:   17px;
+  --cr-font-lg:   21px;
+  --cr-font-xl:   26px;
+  --cr-font-hero: 38px;
+
+  /* Transitions */
+  --cr-transition-fast:   80ms ease;
+  --cr-transition-base:   150ms ease;
+  --cr-transition-smooth: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Base ─────────────────────────────────────────────────────── */
+html {
+  scroll-behavior: smooth;
+  overscroll-behavior-y: none;
+  -webkit-text-size-adjust: 100%;
+}
+body {
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+  font-size: var(--cr-font-base);
+  line-height: 1.5;
+}
+#root {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+/* ── Layout width ─────────────────────────────────────────────── */
+.max-w-\[1440px\] {
+  max-width: 1920px !important;
+}
+
+/* ── Typography ───────────────────────────────────────────────── */
+h1, h2, h3, h4 {
+  letter-spacing: -0.01em;
+  font-weight: 700;
+}
+
+/* ── Inputs — anti-zoom on iOS + consistent styling ──────────── */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="tel"],
+input[type="search"],
+select, textarea {
+  font-size: 16px !important;
+  touch-action: manipulation;
+}
+
+/* ── Touch targets (Apple HIG 44×44px) ───────────────────────── */
+button, [role="button"], [role="tab"], [role="menuitem"] {
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+}
+
+/* Exclude decorative/tiny elements from 44px rule */
+button[class*="rounded-full"][class*="h-1"],
+button[class*="rounded-full"][class*="w-1"],
+button[class*="h-1."],
+button[class*="w-1."] {
+  min-height: unset !important;
+  min-width: unset !important;
+}
+
+/* ── Tap feedback ─────────────────────────────────────────────── */
+button:active,
+[role="button"]:active,
+a:active {
+  opacity: 0.75;
+  transform: scale(0.97);
+  transition: opacity 50ms, transform 50ms !important;
+}
+
+/* Kill sticky hover on touch devices */
+@media (hover: none) and (pointer: coarse) {
+  a:hover, button:hover { background-color: unset !important; }
+}
+
+/* No outline after touch tap */
+@media (pointer: coarse) {
+  *:focus:not(:focus-visible) { outline: none !important; box-shadow: none !important; }
+  button:focus, a:focus, [role="button"]:focus { outline: none !important; }
+}
+
+/* Pointer events — icons inside buttons do not block tap */
+button > *, [role="button"] > *, a > * { pointer-events: none; }
+button, [role="button"], a { pointer-events: auto; }
+
+/* user-select: none rules on interactive elements */
+button, [role="button"], nav a, .select-none {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* ── iOS Safe Area ────────────────────────────────────────────── */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .bottom-0, [class*="fixed"][class*="bottom"] {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+@media (max-width: 768px) {
+  nav, [class*="bottom-nav"] {
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+  }
+}
+
+/* ── Scrollable areas ─────────────────────────────────────────── */
+[data-radix-scroll-area-viewport],
+[class*="overflow-y-auto"],
+[class*="overflow-auto"] {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+[class*="overflow-x-auto"] {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+/* ── Category Tabs ─────────────────────────────────────────────── */
+[class*="overflow-x-auto"] button,
+[class*="overflow-x"] button {
+  flex-shrink: 0 !important;
+}
+
+@media (max-width: 768px) {
+  [role="tab"], button[role="tab"] {
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+    min-width: unset !important;
+    font-size: 13px !important;
+  }
+}
+
+/* ── Game Cards ─────────────────────────────────────────────────
+   Fix: aspect ratio 216x288 (portrait), clean image rendering,
+   stable hover states, no layout jump on image load
+   ─────────────────────────────────────────────────────────────── */
+.aspect-\[3\/4\] {
+  aspect-ratio: 216 / 288 !important;
+}
+
+.aspect-\[3\/4\] > img {
+  object-fit: cover !important;
+  background-color: #0d1421;
+  width: 100%;
+  height: 100%;
+}
+
+.group:hover {
+  transform: translateY(-2px);
+  transition: transform var(--cr-transition-smooth) !important;
+}
+
+/* ── Banner carousel — hide arrows on mobile ─────────────────── */
+@media (max-width: 1023px) {
+  button[class*="absolute"][class*="left-3"][class*="rounded-full"],
+  button[class*="absolute"][class*="right-3"][class*="rounded-full"] {
+    display: none !important;
+  }
+}
+
+/* ── Deposit/Withdraw Modal ───────────────────────────────────── */
+[role="dialog"][data-state="open"] {
+  top: 5vh !important;
+  transform: translateX(-50%) !important;
+  max-height: 90vh !important;
+  overflow-y: auto !important;
+}
+
+/* Balance display — clear hierarchy */
+[class*="balance"],
+[class*="Balance"] {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+/* ── Transaction History ──────────────────────────────────────── */
+[class*="completed"], [class*="success"] {
+  color: var(--cr-green) !important;
+}
+[class*="pending"], [class*="processing"] {
+  color: #f59e0b !important;
+}
+[class*="failed"], [class*="rejected"] {
+  color: var(--cr-red) !important;
+}
+
+[class*="amount"], [class*="Amount"] {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* ── Nav / Bottom Nav ────────────────────────────────────────── */
+nav a, nav button {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Shimmer loading skeleton ─────────────────────────────────── */
+@keyframes cr-shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position:  400px 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, #1a2235 25%, #252b45 50%, #1a2235 75%);
+  background-size: 400px 100%;
+  animation: cr-shimmer 1.4s infinite linear;
+  border-radius: 8px;
+}
+
+/* ── Mobile speed ─────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .transition, .transition-all, .transition-colors {
+    transition-duration: 100ms !important;
+  }
+  .grid-cols-2 { gap: 0.5rem; }
+}
+
+/* ── Reduced motion ───────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ================================================================
+   CASHIER ZONE — Trust-critical UI
+   ================================================================ */
+
+[role="dialog"][data-state="open"] select,
+[role="dialog"][data-state="open"] [role="combobox"] {
+  background: #111827;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  color: #f1f5f9;
+  padding: 10px 14px;
+  font-size: 15px;
+  width: 100%;
+  transition: border-color 150ms ease;
+}
+[role="dialog"][data-state="open"] select:focus,
+[role="dialog"][data-state="open"] [role="combobox"]:focus {
+  border-color: rgba(251,191,36,0.5);
+  outline: none;
+}
+
+[role="dialog"][data-state="open"] [class*="address"],
+[role="dialog"][data-state="open"] code,
+[role="dialog"][data-state="open"] [class*="mono"] {
+  font-family: SF Mono, Fira Code, Cascadia Code, monospace !important;
+  font-size: 13px !important;
+  letter-spacing: 0.02em;
+  word-break: break-all;
+  user-select: all !important;
+  -webkit-user-select: all !important;
+}
+
+[role="dialog"][data-state="open"] input[type="number"],
+[role="dialog"][data-state="open"] input[class*="amount"] {
+  font-size: 24px !important;
+  font-weight: 700;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+[role="dialog"][data-state="open"] [class*="fee"],
+[role="dialog"][data-state="open"] [class*="rate"],
+[role="dialog"][data-state="open"] [class*="min"],
+[role="dialog"][data-state="open"] [class*="limit"] {
+  font-size: 12px;
+  color: #64748b;
+}
+
+[role="dialog"][data-state="open"] button[class*="primary"],
+[role="dialog"][data-state="open"] button[type="submit"] {
+  background: linear-gradient(135deg, #f59e0b, #d97706) !important;
+  color: #000 !important;
+  font-weight: 700 !important;
+  border-radius: 12px !important;
+  padding: 14px 28px !important;
+  font-size: 16px !important;
+  width: 100%;
+  border: none !important;
+  cursor: pointer;
+  transition: opacity 150ms ease, transform 100ms ease;
+}
+[role="dialog"][data-state="open"] button[type="submit"]:hover {
+  opacity: 0.92;
+}
+[role="dialog"][data-state="open"] button[type="submit"]:active {
+  transform: scale(0.98);
+}
+
+[role="dialog"][data-state="open"] [class*="warning"],
+[role="dialog"][data-state="open"] [class*="info"] {
+  background: rgba(251,191,36,0.08);
+  border: 1px solid rgba(251,191,36,0.2);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 12px;
+  color: #d97706;
+}
+
+[role="dialog"][data-state="open"] canvas,
+[role="dialog"][data-state="open"] [class*="qr"] {
+  display: block;
+  margin: 0 auto;
+  border-radius: 12px;
+  padding: 12px;
+  background: #fff;
+}
+
+/* ================================================================
+   WALLET / TRANSACTION HISTORY
+   ================================================================ */
+
+[class*="transaction"],
+[class*="Transaction"] {
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  transition: background 120ms ease;
+}
+[class*="transaction"]:hover,
+[class*="Transaction"]:hover {
+  background: rgba(255,255,255,0.02);
+}
+
+[class*="txid"], [class*="txHash"], [class*="tx-hash"] {
+  font-family: monospace;
+  font-size: 11px;
+  color: #3b82f6;
+  word-break: break-all;
+}
+
+[class*="wallet-balance"],
+[class*="total-balance"] {
+  font-size: 32px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+/* ================================================================
+   PROFILE / ACCOUNT CENTER
+   ================================================================ */
+
+[class*="avatar"], [class*="Avatar"] {
+  border-radius: 50%;
+  border: 2px solid rgba(251,191,36,0.3);
+}
+
+[class*="section-title"],
+[class*="sectionTitle"] {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #64748b;
+  margin-bottom: 12px;
+}
+
+[class*="profile"] input,
+[class*="account"] input {
+  background: #111827;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  color: #f1f5f9;
+  padding: 10px 14px;
+  font-size: 15px;
+  transition: border-color 150ms ease;
+}
+[class*="profile"] input:focus,
+[class*="account"] input:focus {
+  border-color: rgba(251,191,36,0.4);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(251,191,36,0.08);
+}
+
+[class*="profile"] button[type="submit"],
+[class*="account"] button[type="submit"] {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #000;
+  font-weight: 700;
+  border-radius: 10px;
+  padding: 11px 24px;
+  border: none;
+  cursor: pointer;
+}
+
+/* ================================================================
+   GAME LAUNCH SHELL
+   ================================================================ */
+
+iframe[class*="game"],
+iframe[src*="game"],
+#gameOverlayFrame {
+  border: none !important;
+  outline: none !important;
+  background: #000;
+  display: block;
+}
+
+[class*="game-shell"],
+[class*="gameShell"],
+[class*="game-container"] {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 9000 !important;
+  background: #000;
+  display: flex;
+  flex-direction: column;
+}
+
+@supports (padding-top: env(safe-area-inset-top)) {
+  [class*="game-header"],
+  [class*="gameHeader"] {
+    padding-top: max(12px, env(safe-area-inset-top));
+  }
+}
+
+/* ================================================================
+   HERO / PROMO SECTION
+   ================================================================ */
+
+h1[class*="hero"],
+[class*="hero"] h1,
+[class*="hero-title"] {
+  font-size: clamp(28px, 5vw, 52px);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+[class*="jackpot"],
+[class*="Jackpot"] {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* ================================================================
+   ADMIN UI SEPARATION
+   ================================================================ */
+
+[id^="cr-admin-"],
+[class^="cr-admin-"] {
+  z-index: 9999 !important;
+  isolation: isolate;
+}
+
+/* ================================================================
+   UTILITY OVERRIDES
+   ================================================================ */
+
+body, button, input, select {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+:focus-visible {
+  outline: 2px solid rgba(251,191,36,0.6);
+  outline-offset: 2px;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+button { cursor: pointer; }

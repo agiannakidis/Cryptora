@@ -45,21 +45,21 @@
     try {
       const r = await apiGet('/crypto/2fa/status');
       if (r.enabled) {
-        container.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between"><div><span style="color:#4ade80;font-weight:600">2FA Enabled</span><p style="color:#64748b;font-size:.8rem;margin:4px 0 0">Your account is protected</p></div><button onclick="pp2faDisable()" style="padding:8px 16px;background:rgba(239,68,68,.15);color:#f87171;border:1px solid rgba(239,68,68,.3);border-radius:8px;cursor:pointer;font-size:.85rem">Disable</button></div>';
+        container.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between"><div><span style="color:var(--cr-green,#10b981);font-weight:600">2FA Enabled</span><p style="color:var(--cr-text-muted,#64748b);font-size:.8rem;margin:4px 0 0">Your account is protected</p></div><button onclick="pp2faDisable()" style="padding:8px 16px;background:rgba(239,68,68,.15);color:var(--cr-red,#ef4444);border:1px solid rgba(239,68,68,.3);border-radius:8px;cursor:pointer;font-size:.85rem">Disable</button></div>';
       } else {
-        container.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><div><span style="color:#f59e0b;font-weight:600">2FA Disabled</span><p style="color:#64748b;font-size:.8rem;margin:4px 0 0">Enable for extra security on withdrawals</p></div><button onclick="pp2faEnable()" style="padding:8px 16px;background:rgba(240,192,64,.1);color:#f0c040;border:1px solid rgba(240,192,64,.3);border-radius:8px;cursor:pointer;font-size:.85rem">Enable 2FA</button></div><div id="pp-2fa-setup" style="display:none"></div>';
+        container.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><div><span style="color:#f59e0b;font-weight:600">2FA Disabled</span><p style="color:var(--cr-text-muted,#64748b);font-size:.8rem;margin:4px 0 0">Enable for extra security on withdrawals</p></div><button onclick="pp2faEnable()" style="padding:8px 16px;background:rgba(240,192,64,.1);color:var(--cr-gold,#fbbf24);border:1px solid rgba(240,192,64,.3);border-radius:8px;cursor:pointer;font-size:.85rem">Enable 2FA</button></div><div id="pp-2fa-setup" style="display:none"></div>';
       }
-    } catch(e) { container.innerHTML = '<span style="color:#64748b">2FA status unavailable</span>'; }
+    } catch(e) { container.innerHTML = '<span style="color:var(--cr-text-muted,#64748b)">2FA status unavailable</span>'; }
   }
 
   async function pp2faEnable() {
     const setup = document.getElementById('pp-2fa-setup');
     if (!setup) return;
     setup.style.display = 'block';
-    setup.innerHTML = '<p style="color:#64748b">Loading...</p>';
+    setup.innerHTML = '<p style="color:var(--cr-text-muted,#64748b)">Loading...</p>';
     const r = await apiPost('/crypto/2fa/setup', {});
-    if (r.error) { setup.innerHTML = '<p style="color:#f87171">' + r.error + '</p>'; return; }
-    setup.innerHTML = '<div style="background:#0a0e1a;border:1px solid #252b45;border-radius:12px;padding:20px;text-align:center"><p style="color:#94a3b8;font-size:.85rem;margin-bottom:12px">Scan with Google Authenticator</p><img src="' + r.qrCode + '" style="border-radius:8px;max-width:180px;margin:0 auto;display:block"/><p style="color:#64748b;font-size:.75rem;margin:12px 0 16px;word-break:break-all">' + r.secret + '</p><div style="display:flex;gap:8px;justify-content:center"><input id="pp-2fa-code" type="text" maxlength="6" placeholder="6-digit code" style="padding:10px 14px;background:#141829;border:1px solid #252b45;border-radius:8px;color:#e2e8f0;font-size:1rem;text-align:center;width:140px"/><button onclick="pp2faConfirm()" style="padding:10px 20px;background:linear-gradient(135deg,#f0c040,#d97706);color:#0a0e1a;font-weight:700;border:none;border-radius:8px;cursor:pointer">Confirm</button></div></div>';
+    if (r.error) { setup.innerHTML = '<p style="color:var(--cr-red,#ef4444)">' + r.error + '</p>'; return; }
+    setup.innerHTML = '<div style="background:var(--cr-bg-primary,#0a0e1a);border:1px solid var(--cr-border,rgba(255,255,255,0.07));border-radius:12px;padding:20px;text-align:center"><p style="color:var(--cr-text-secondary,#94a3b8);font-size:.85rem;margin-bottom:12px">Scan with Google Authenticator</p><img src="' + r.qrCode + '" style="border-radius:8px;max-width:180px;margin:0 auto;display:block"/><p style="color:var(--cr-text-muted,#64748b);font-size:.75rem;margin:12px 0 16px;word-break:break-all">' + r.secret + '</p><div style="display:flex;gap:8px;justify-content:center"><input id="pp-2fa-code" type="text" maxlength="6" placeholder="6-digit code" style="padding:10px 14px;background:var(--cr-bg-card,#141829);border:1px solid var(--cr-border,rgba(255,255,255,0.07));border-radius:8px;color:var(--cr-text-primary,#e2e8f0);font-size:1rem;text-align:center;width:140px"/><button onclick="pp2faConfirm()" style="padding:10px 20px;background:linear-gradient(135deg,var(--cr-gold,#fbbf24),#d97706);color:#000;font-weight:700;border:none;border-radius:8px;cursor:pointer">Confirm</button></div></div>';
   }
 
   async function pp2faConfirm() {
@@ -80,34 +80,34 @@
   window.pp2faEnable = pp2faEnable; window.pp2faConfirm = pp2faConfirm; window.pp2faDisable = pp2faDisable;
 
   function renderProfilePage(container) {
-    container.innerHTML = '<div style="max-width:580px;margin:0 auto;padding:32px 16px;color:#e2e8f0;font-family:-apple-system,sans-serif">' +
-      '<button onclick="history.back()" style="color:#64748b;background:none;border:none;cursor:pointer;font-size:.9rem;margin-bottom:16px">← Back</button>' +
-      '<h1 style="font-size:1.5rem;font-weight:700;color:#f0c040;margin-bottom:24px">My Profile</h1>' +
+    container.innerHTML = '<div style="max-width:580px;margin:0 auto;padding:32px 16px;color:var(--cr-text-primary,#e2e8f0);font-family:-apple-system,sans-serif">' +
+      '<button onclick="history.back()" style="color:var(--cr-text-muted,#64748b);background:none;border:none;cursor:pointer;font-size:.9rem;margin-bottom:16px">← Back</button>' +
+      '<h1 style="font-size:1.5rem;font-weight:700;color:var(--cr-gold,#fbbf24);margin-bottom:24px">My Profile</h1>' +
       '<div id="pp-msg" style="display:none;padding:10px 16px;border-radius:8px;margin-bottom:16px;font-size:.9rem"></div>' +
       // Basic info
-      '<div style="background:#141829;border:1px solid #252b45;border-radius:16px;padding:24px;margin-bottom:20px">' +
-        '<h2 style="font-size:.85rem;font-weight:600;color:#64748b;margin-bottom:16px;text-transform:uppercase;letter-spacing:.06em">Account Info</h2>' +
-        '<label style="display:block;font-size:.85rem;color:#94a3b8;margin-bottom:6px">Display Name</label>' +
-        '<input id="pp-name" type="text" placeholder="Your name" style="width:100%;padding:10px 14px;background:#0a0e1a;border:1px solid #252b45;border-radius:8px;color:#e2e8f0;font-size:.95rem;box-sizing:border-box;margin-bottom:14px"/>' +
-        '<label style="display:block;font-size:.85rem;color:#94a3b8;margin-bottom:6px">Email</label>' +
-        '<input id="pp-email" type="email" disabled style="width:100%;padding:10px 14px;background:#0a0e1a;border:1px solid #1e2540;border-radius:8px;color:#475569;font-size:.95rem;box-sizing:border-box;margin-bottom:14px"/>' +
-        '<label style="display:block;font-size:.85rem;color:#94a3b8;margin-bottom:6px">Currency</label>' +
-        '<select id="pp-currency" style="width:100%;padding:10px 14px;background:#0a0e1a;border:1px solid #252b45;border-radius:8px;color:#e2e8f0;font-size:.95rem;box-sizing:border-box;margin-bottom:20px"><option value="USD">USD</option><option value="EUR">EUR</option></select>' +
-        '<button onclick="ppSave()" style="padding:10px 24px;background:linear-gradient(135deg,#f0c040,#d97706);color:#0a0e1a;font-weight:700;border:none;border-radius:8px;cursor:pointer">Save Changes</button>' +
+      '<div style="background:var(--cr-bg-card,#141829);border:1px solid var(--cr-border,rgba(255,255,255,0.07));border-radius:16px;padding:24px;margin-bottom:20px">' +
+        '<h2 style="font-size:.85rem;font-weight:600;color:var(--cr-text-muted,#64748b);margin-bottom:16px;text-transform:uppercase;letter-spacing:.06em">Account Info</h2>' +
+        '<label style="display:block;font-size:.85rem;color:var(--cr-text-secondary,#94a3b8);margin-bottom:6px">Display Name</label>' +
+        '<input id="pp-name" type="text" placeholder="Your name" style="width:100%;padding:10px 14px;background:var(--cr-bg-primary,#0a0e1a);border:1px solid var(--cr-border,rgba(255,255,255,0.07));border-radius:8px;color:var(--cr-text-primary,#e2e8f0);font-size:.95rem;box-sizing:border-box;margin-bottom:14px"/>' +
+        '<label style="display:block;font-size:.85rem;color:var(--cr-text-secondary,#94a3b8);margin-bottom:6px">Email</label>' +
+        '<input id="pp-email" type="email" disabled style="width:100%;padding:10px 14px;background:var(--cr-bg-primary,#0a0e1a);border:1px solid var(--cr-border,rgba(255,255,255,0.07));border-radius:8px;color:var(--cr-text-muted,#475569);font-size:.95rem;box-sizing:border-box;margin-bottom:14px"/>' +
+        '<label style="display:block;font-size:.85rem;color:var(--cr-text-secondary,#94a3b8);margin-bottom:6px">Currency</label>' +
+        '<select id="pp-currency" style="width:100%;padding:10px 14px;background:var(--cr-bg-primary,#0a0e1a);border:1px solid var(--cr-border,rgba(255,255,255,0.07));border-radius:8px;color:var(--cr-text-primary,#e2e8f0);font-size:.95rem;box-sizing:border-box;margin-bottom:20px"><option value="USD">USD</option><option value="EUR">EUR</option></select>' +
+        '<button onclick="ppSave()" style="padding:10px 24px;background:linear-gradient(135deg,var(--cr-gold,#fbbf24),#d97706);color:#000;font-weight:700;border:none;border-radius:8px;cursor:pointer">Save Changes</button>' +
       '</div>' +
       // Change password
-      '<div style="background:#141829;border:1px solid #252b45;border-radius:16px;padding:24px;margin-bottom:20px">' +
-        '<h2 style="font-size:.85rem;font-weight:600;color:#64748b;margin-bottom:16px;text-transform:uppercase;letter-spacing:.06em">Change Password</h2>' +
-        '<label style="display:block;font-size:.85rem;color:#94a3b8;margin-bottom:6px">Current Password</label>' +
-        '<input id="pp-pwd-current" type="password" placeholder="••••••••" style="width:100%;padding:10px 14px;background:#0a0e1a;border:1px solid #252b45;border-radius:8px;color:#e2e8f0;font-size:.95rem;box-sizing:border-box;margin-bottom:14px"/>' +
-        '<label style="display:block;font-size:.85rem;color:#94a3b8;margin-bottom:6px">New Password</label>' +
-        '<input id="pp-pwd-new" type="password" placeholder="Min 8 characters" style="width:100%;padding:10px 14px;background:#0a0e1a;border:1px solid #252b45;border-radius:8px;color:#e2e8f0;font-size:.95rem;box-sizing:border-box;margin-bottom:20px"/>' +
-        '<button onclick="ppChangePwd()" style="padding:10px 24px;background:#1e293b;color:#e2e8f0;font-weight:600;border:1px solid #334155;border-radius:8px;cursor:pointer">Update Password</button>' +
+      '<div style="background:var(--cr-bg-card,#141829);border:1px solid var(--cr-border,rgba(255,255,255,0.07));border-radius:16px;padding:24px;margin-bottom:20px">' +
+        '<h2 style="font-size:.85rem;font-weight:600;color:var(--cr-text-muted,#64748b);margin-bottom:16px;text-transform:uppercase;letter-spacing:.06em">Change Password</h2>' +
+        '<label style="display:block;font-size:.85rem;color:var(--cr-text-secondary,#94a3b8);margin-bottom:6px">Current Password</label>' +
+        '<input id="pp-pwd-current" type="password" placeholder="••••••••" style="width:100%;padding:10px 14px;background:var(--cr-bg-primary,#0a0e1a);border:1px solid var(--cr-border,rgba(255,255,255,0.07));border-radius:8px;color:var(--cr-text-primary,#e2e8f0);font-size:.95rem;box-sizing:border-box;margin-bottom:14px"/>' +
+        '<label style="display:block;font-size:.85rem;color:var(--cr-text-secondary,#94a3b8);margin-bottom:6px">New Password</label>' +
+        '<input id="pp-pwd-new" type="password" placeholder="Min 8 characters" style="width:100%;padding:10px 14px;background:var(--cr-bg-primary,#0a0e1a);border:1px solid var(--cr-border,rgba(255,255,255,0.07));border-radius:8px;color:var(--cr-text-primary,#e2e8f0);font-size:.95rem;box-sizing:border-box;margin-bottom:20px"/>' +
+        '<button onclick="ppChangePwd()" style="padding:10px 24px;background:#1e293b;color:var(--cr-text-primary,#e2e8f0);font-weight:600;border:1px solid #334155;border-radius:8px;cursor:pointer">Update Password</button>' +
       '</div>' +
       // 2FA
-      '<div style="background:#141829;border:1px solid #252b45;border-radius:16px;padding:24px">' +
-        '<h2 style="font-size:.85rem;font-weight:600;color:#64748b;margin-bottom:4px;text-transform:uppercase;letter-spacing:.06em">Two-Factor Authentication</h2>' +
-        '<p style="font-size:.82rem;color:#475569;margin-bottom:16px">Protects withdrawals with a TOTP code</p>' +
+      '<div style="background:var(--cr-bg-card,#141829);border:1px solid var(--cr-border,rgba(255,255,255,0.07));border-radius:16px;padding:24px">' +
+        '<h2 style="font-size:.85rem;font-weight:600;color:var(--cr-text-muted,#64748b);margin-bottom:4px;text-transform:uppercase;letter-spacing:.06em">Two-Factor Authentication</h2>' +
+        '<p style="font-size:.82rem;color:var(--cr-text-muted,#475569);margin-bottom:16px">Protects withdrawals with a TOTP code</p>' +
         '<div id="pp-2fa-status">Loading...</div>' +
       '</div>' +
     '</div>';
@@ -128,7 +128,7 @@
       if (!pp) {
         pp = document.createElement('div');
         pp.id = 'profile-page-root';
-        pp.style.cssText = 'position:fixed;top:64px;left:0;right:0;bottom:0;overflow-y:auto;background:#0a0e1a;z-index:50';
+        pp.style.cssText = 'position:fixed;top:64px;left:0;right:0;bottom:0;overflow-y:auto;background:var(--cr-bg-primary,#0a0e1a);z-index:50';
         document.body.appendChild(pp);
       }
       pp.style.display = 'block';

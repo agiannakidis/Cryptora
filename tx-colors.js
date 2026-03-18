@@ -1,3 +1,6 @@
+// DEPRECATED: tx-colors.js — CSS color injection superseded by design-system.css
+// Keeping for DOM manipulation (sign prefixes on amounts, row scanning) which CSS cannot replicate.
+// Color classes (.tx-amt-*) are still used by DOM logic below.
 // tx-colors.js v3 — color transaction amounts in div-based list layout
 (function () {
   const style = document.createElement('style');
