@@ -1,0 +1,2272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cryptora Partners — Affiliate Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg-main: #0a0d14;
+    --bg-sidebar: #0d1117;
+    --bg-card: #111827;
+    --bg-card2: #0f1623;
+    --border: #1f2937;
+    --border2: #2d3748;
+    --text: #f1f5f9;
+    --muted: #94a3b8;
+    --accent-blue: #3b82f6;
+    --green: #10b981;
+    --yellow: #f59e0b;
+    --red: #ef4444;
+    --gold: #f0c040;
+    --slate: #64748b;
+    --purple: #8b5cf6;
+    --cyan: #06b6d4;
+  }
+  html { font-size: 18px; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg-main);
+    color: var(--text);
+    display: flex;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ─── SCROLLBAR ─── */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: var(--bg-main); }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+  /* ─── SIDEBAR ─── */
+  #sidebar {
+    width: 240px;
+    min-width: 240px;
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    z-index: 100;
+    overflow-y: auto;
+  }
+  .sidebar-logo {
+    padding: 22px 20px 18px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    color: var(--text);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .sidebar-logo span { color: var(--gold); }
+  .sidebar-section-label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 14px 20px 6px;
+  }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 20px;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 0.95rem;
+    font-weight: 500;
+    border-left: 3px solid transparent;
+    transition: all 0.15s;
+    user-select: none;
+    text-decoration: none;
+  }
+  .nav-item:hover { background: rgba(255,255,255,0.04); color: var(--text); }
+  .nav-item.active {
+    background: rgba(59,130,246,0.1);
+    color: var(--accent-blue);
+    border-left-color: var(--accent-blue);
+  }
+  .nav-item .nav-icon { font-size: 1rem; width: 18px; text-align: center; }
+  .nav-badge {
+    margin-left: auto;
+    background: var(--red);
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 99px;
+  }
+  .sidebar-bottom {
+    margin-top: auto;
+    border-top: 1px solid var(--border);
+    padding: 14px 20px;
+  }
+  .user-email { font-size: 0.88rem; color: var(--muted); margin-bottom: 8px; word-break: break-all; }
+  .btn-logout {
+    background: rgba(239,68,68,0.1);
+    color: var(--red);
+    border: 1px solid rgba(239,68,68,0.25);
+    padding: 7px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.88rem;
+    font-weight: 600;
+    width: 100%;
+    transition: all 0.15s;
+  }
+  .btn-logout:hover { background: rgba(239,68,68,0.2); }
+
+  /* ─── MAIN CONTENT ─── */
+  #main {
+    margin-left: 240px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+
+  /* ─── HEADER ─── */
+  #header {
+    position: sticky;
+    top: 0;
+    z-index: 90;
+    background: rgba(10,13,20,0.97);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .header-titles h1 { font-size: 1.35rem; font-weight: 700; color: var(--text); }
+  .header-titles p { font-size: 0.9rem; color: var(--muted); margin-top: 2px; }
+  .header-actions { display: flex; gap: 10px; align-items: center; }
+  .btn { padding: 8px 16px; border-radius: 7px; font-size: 0.92rem; font-weight: 600; cursor: pointer; transition: all 0.15s; border: none; display: inline-flex; align-items: center; gap: 6px; }
+  .btn-primary { background: var(--accent-blue); color: #fff; }
+  .btn-primary:hover { background: #2563eb; }
+  .btn-outline { background: transparent; color: var(--text); border: 1px solid var(--border2); }
+  .btn-outline:hover { background: rgba(255,255,255,0.05); }
+  .btn-success { background: var(--green); color: #fff; }
+  .btn-success:hover { background: #059669; }
+  .btn-sm { padding: 5px 11px; font-size: 0.85rem; }
+
+  /* ─── FILTER BAR ─── */
+  #filterbar {
+    position: sticky;
+    top: 69px;
+    z-index: 89;
+    background: rgba(10,13,20,0.97);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 28px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .date-btns { display: flex; gap: 4px; }
+  .date-btn {
+    padding: 5px 11px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    transition: all 0.15s;
+  }
+  .date-btn.active, .date-btn:hover {
+    background: var(--accent-blue);
+    color: #fff;
+    border-color: var(--accent-blue);
+  }
+  .filter-select, .filter-input {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 0.88rem;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.15s;
+    height: 32px;
+  }
+  .filter-select:focus, .filter-input:focus { border-color: var(--accent-blue); }
+  .filter-input { width: 110px; }
+  .filter-sep { width: 1px; height: 24px; background: var(--border); margin: 0 4px; }
+
+  /* ─── CONTENT AREA ─── */
+  #content { padding: 24px 28px; flex: 1; }
+
+  /* ─── SECTION ─── */
+  .section-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-title .tag {
+    font-size: 0.85rem;
+    font-weight: 600;
+    background: rgba(59,130,246,0.15);
+    color: var(--accent-blue);
+    padding: 2px 8px;
+    border-radius: 99px;
+  }
+
+  /* ─── KPI CARDS ─── */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+  .kpi-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    border-left-width: 3px;
+    position: relative;
+    overflow: hidden;
+  }
+  .kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0; right: 0;
+    width: 60px; height: 60px;
+    border-radius: 50%;
+    opacity: 0.05;
+    background: currentColor;
+    transform: translate(20px, -20px);
+  }
+  .kpi-label { font-size: 0.88rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+  .kpi-value { font-size: 1.65rem; font-weight: 700; color: var(--text); line-height: 1; margin-bottom: 8px; }
+  .kpi-delta { font-size: 0.9rem; font-weight: 600; display: flex; align-items: center; gap: 4px; }
+  .kpi-delta.up { color: var(--green); }
+  .kpi-delta.down { color: var(--red); }
+  .kpi-delta.neutral { color: var(--muted); }
+
+  /* ─── CHARTS GRID ─── */
+  .charts-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .chart-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+  }
+  .chart-card-title {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .chart-card-title .muted { font-size: 0.75rem; color: var(--muted); font-weight: 400; }
+  .chart-wrap { position: relative; height: 220px; }
+
+  /* ─── TABLE STYLES ─── */
+  .table-wrap {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 24px;
+  }
+  .table-header {
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .table-header .section-title { margin-bottom: 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  th {
+    padding: 10px 14px;
+    text-align: left;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-card2);
+    cursor: pointer;
+    white-space: nowrap;
+    user-select: none;
+  }
+  th:hover { color: var(--text); }
+  th .sort-arrow { margin-left: 4px; opacity: 0.4; }
+  th.sorted .sort-arrow { opacity: 1; color: var(--accent-blue); }
+  td {
+    padding: 10px 14px;
+    color: var(--text);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  .badge {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 99px;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+  .badge-green { background: rgba(16,185,129,0.15); color: var(--green); }
+  .badge-yellow { background: rgba(245,158,11,0.15); color: var(--yellow); }
+  .badge-blue { background: rgba(59,130,246,0.15); color: var(--accent-blue); }
+  .badge-slate { background: rgba(100,116,139,0.15); color: var(--slate); }
+  .badge-red { background: rgba(239,68,68,0.15); color: var(--red); }
+  .badge-purple { background: rgba(139,92,246,0.15); color: var(--purple); }
+  .badge-gold { background: rgba(240,192,64,0.15); color: var(--gold); }
+  .table-footer {
+    padding: 12px 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  .pagination { display: flex; gap: 4px; align-items: center; }
+  .page-btn {
+    padding: 4px 10px;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.12s;
+  }
+  .page-btn:hover, .page-btn.active {
+    background: var(--accent-blue);
+    border-color: var(--accent-blue);
+    color: #fff;
+  }
+
+  /* ─── TWO COLS LAYOUT ─── */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+
+  /* ─── COMMISSION BLOCK ─── */
+  .commission-left, .commission-right {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+  }
+  .comm-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.85rem;
+  }
+  .comm-row:last-child { border-bottom: none; }
+  .comm-label { color: var(--muted); }
+  .comm-value { font-weight: 600; color: var(--text); }
+  .comm-value.green { color: var(--green); }
+  .comm-value.red { color: var(--red); }
+  .comm-value.gold { color: var(--gold); }
+  .comm-total {
+    display: flex;
+    justify-content: space-between;
+    padding: 12px 0 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-top: 4px;
+  }
+  .comm-total .val { color: var(--green); }
+  .payment-info { margin-bottom: 16px; }
+  .payment-info-row { display: flex; justify-content: space-between; font-size: 0.9rem; padding: 4px 0; }
+  .payment-info-row .lbl { color: var(--muted); }
+  .payment-info-row .val { color: var(--text); font-weight: 500; }
+
+  /* ─── MARKETING TOOLS ─── */
+  .tools-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .tool-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+  }
+  .tool-card-title {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .tool-icon { font-size: 1.1rem; }
+  .copy-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .copy-input {
+    flex: 1;
+    background: var(--bg-main);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 0.76rem;
+    font-family: monospace;
+    outline: none;
+  }
+  .copy-input:focus { border-color: var(--accent-blue); color: var(--text); }
+  .btn-copy {
+    background: rgba(59,130,246,0.1);
+    border: 1px solid rgba(59,130,246,0.3);
+    color: var(--accent-blue);
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.76rem;
+    font-weight: 600;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .btn-copy:hover { background: rgba(59,130,246,0.2); }
+  .banner-list { display: flex; flex-direction: column; gap: 6px; }
+  .banner-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 7px 10px;
+    background: var(--bg-main);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.85rem;
+  }
+  .banner-size { color: var(--muted); }
+  .banner-download { color: var(--accent-blue); cursor: pointer; font-weight: 600; }
+  .banner-download:hover { text-decoration: underline; }
+  .macro-list { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+  .macro-tag {
+    font-family: monospace;
+    font-size: 0.85rem;
+    background: rgba(59,130,246,0.1);
+    color: var(--cyan);
+    border: 1px solid rgba(6,182,212,0.2);
+    padding: 2px 7px;
+    border-radius: 4px;
+  }
+  .api-key-wrap { display: flex; gap: 6px; align-items: center; margin-bottom: 10px; }
+  .api-key-field {
+    flex: 1;
+    background: var(--bg-main);
+    border: 1px solid var(--border);
+    color: var(--green);
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-family: monospace;
+    outline: none;
+  }
+  .postback-url-input {
+    width: 100%;
+    background: var(--bg-main);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 7px 10px;
+    border-radius: 6px;
+    font-size: 0.76rem;
+    font-family: monospace;
+    outline: none;
+    margin-bottom: 8px;
+  }
+  .postback-url-input:focus { border-color: var(--accent-blue); }
+
+  /* ─── NOTIFICATIONS ─── */
+  .notifications-wrap {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 24px;
+  }
+  .notif-item {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.12s;
+  }
+  .notif-item:last-child { border-bottom: none; }
+  .notif-item:hover { background: rgba(255,255,255,0.02); }
+  .notif-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    flex-shrink: 0;
+  }
+  .notif-body { flex: 1; }
+  .notif-title { font-size: 0.85rem; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+  .notif-desc { font-size: 0.85rem; color: var(--muted); }
+  .notif-time { font-size: 0.9rem; color: var(--slate); white-space: nowrap; margin-top: 2px; }
+  .notif-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent-blue); margin-top: 6px; flex-shrink: 0; }
+  .notif-dot.read { background: transparent; }
+
+  /* ─── LOGIN OVERLAY ─── */
+  #login-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(10,13,20,0.92);
+    backdrop-filter: blur(8px);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .login-box {
+    background: var(--bg-card);
+    border: 1px solid var(--border2);
+    border-radius: 14px;
+    padding: 36px 40px;
+    width: 380px;
+    max-width: 95vw;
+  }
+  .login-logo { font-size: 1.5rem; font-weight: 800; text-align: center; margin-bottom: 6px; }
+  .login-sub { text-align: center; color: var(--muted); font-size: 0.92rem; margin-bottom: 28px; }
+  .form-group { margin-bottom: 16px; }
+  .form-label { font-size: 0.85rem; font-weight: 600; color: var(--muted); margin-bottom: 6px; display: block; }
+  .form-input {
+    width: 100%;
+    background: var(--bg-main);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .form-input:focus { border-color: var(--accent-blue); }
+  .login-error { color: var(--red); font-size: 0.85rem; margin-bottom: 12px; display: none; }
+  .btn-login {
+    width: 100%;
+    background: var(--accent-blue);
+    color: #fff;
+    border: none;
+    padding: 11px;
+    border-radius: 8px;
+    font-size: 0.92rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s;
+    margin-top: 4px;
+  }
+  .btn-login:hover { background: #2563eb; }
+  .login-demo-note {
+    text-align: center;
+    font-size: 0.75rem;
+    color: var(--slate);
+    margin-top: 14px;
+  }
+  .login-demo-link { color: var(--accent-blue); cursor: pointer; text-decoration: underline; }
+
+  /* ─── TOAST ─── */
+  #toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--bg-card);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    padding: 12px 18px;
+    font-size: 0.9rem;
+    color: var(--text);
+    z-index: 9000;
+    display: none;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+    max-width: 320px;
+  }
+  #toast.show { display: flex; }
+  .toast-icon { font-size: 1rem; }
+
+  /* ─── DIVIDER ─── */
+  .divider { height: 1px; background: var(--border); margin: 8px 0; }
+
+  /* ─── MINI STAT ─── */
+  .mini-stat { display: flex; gap: 12px; margin-top: 10px; }
+  .mini-stat-item { flex: 1; text-align: center; padding: 10px; background: var(--bg-main); border: 1px solid var(--border); border-radius: 7px; }
+  .mini-stat-val { font-size: 1.05rem; font-weight: 700; color: var(--text); }
+  .mini-stat-lbl { font-size: 0.85rem; color: var(--muted); margin-top: 2px; }
+
+  /* ─── LANDING PAGES ─── */
+  .lp-list { display: flex; flex-direction: column; gap: 6px; }
+  .lp-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 7px 10px;
+    background: var(--bg-main);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.85rem;
+  }
+  .lp-url { color: var(--cyan); font-family: monospace; overflow: hidden; text-overflow: ellipsis; max-width: 150px; }
+  .lp-cr { color: var(--muted); font-size: 0.85rem; }
+
+  /* ─── PROMO CODES ─── */
+  .promo-table { width: 100%; font-size: 0.85rem; margin-top: 4px; }
+  .promo-table th { font-size: 0.85rem; color: var(--muted); font-weight: 600; text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--border); background: none; cursor: default; }
+  .promo-table td { padding: 6px 6px; border-bottom: 1px solid rgba(31,41,55,0.5); color: var(--text); }
+  .promo-table tr:last-child td { border-bottom: none; }
+
+  /* ─── STATUS INDICATOR ─── */
+  .status-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
+
+  /* ─── RESPONSIVE ─── */
+  @media (max-width: 1280px) {
+    .kpi-grid { grid-template-columns: repeat(3, 1fr); }
+    .tools-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 1024px) {
+    #sidebar { width: 56px; }
+    .sidebar-logo span:last-child, .nav-item span:not(.nav-icon), .sidebar-section-label, .sidebar-bottom .user-email { display: none; }
+    #main { margin-left: 56px; }
+    .charts-grid { grid-template-columns: 1fr; }
+    .two-col { grid-template-columns: 1fr; }
+    .tools-grid { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 768px) {
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    #filterbar { top: 0; position: relative; }
+    #header { position: relative; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════
+     LOGIN OVERLAY
+════════════════════════════════════════════════════ -->
+<div id="login-overlay">
+  <div class="login-box">
+    <div class="login-logo">🎰 Cryptora Partners</div>
+    <div class="login-sub">Sign in to access your affiliate dashboard</div>
+    <div class="form-group">
+      <label class="form-label">Email Address</label>
+      <input class="form-input" type="email" id="login-email" placeholder="you@example.com" autocomplete="email">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Password</label>
+      <input class="form-input" type="password" id="login-password" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <div class="login-error" id="login-error">❌ Invalid credentials. Please try again.</div>
+    <button class="btn-login" id="btn-do-login">Sign In →</button>
+    <div class="login-demo-note" style="color:var(--muted);font-size:0.78rem;text-align:center;margin-top:12px">
+      Contact your affiliate manager to get access
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     SIDEBAR
+════════════════════════════════════════════════════ -->
+<nav id="sidebar">
+  <div class="sidebar-logo">
+    <span>🎰</span>
+    <span>Cryptora Partners</span>
+  </div>
+
+  <div class="sidebar-section-label">Main</div>
+  <div class="nav-item active" id="nav-dashboard" onclick="showPage('dashboard')">
+    <span class="nav-icon">📊</span><span>Dashboard</span>
+  </div>
+  <div class="nav-item" id="nav-reports" onclick="showPage('reports')">
+    <span class="nav-icon">📈</span><span>Reports</span>
+  </div>
+  <div class="nav-item" id="nav-games" onclick="showPage('games')">
+    <span class="nav-icon">🎮</span><span>Game Performance</span>
+  </div>
+  <div class="nav-item" id="nav-brands" onclick="showPage('brands')">
+    <span class="nav-icon">🎲</span><span>Brands</span>
+  </div>
+  <div class="nav-item" id="nav-campaigns" onclick="showPage('campaigns')">
+    <span class="nav-icon">🎯</span><span>Campaigns</span>
+  </div>
+  <div class="nav-item" id="nav-players" onclick="showPage('players')">
+    <span class="nav-icon">👥</span><span>Players</span>
+  </div>
+  <div class="nav-item" id="nav-commissions" onclick="showPage('commissions')">
+    <span class="nav-icon">💰</span><span>Commissions</span>
+  </div>
+
+  <div class="sidebar-section-label">Finance</div>
+  <div class="nav-item" id="nav-payments" onclick="showPage('payments')">
+    <span class="nav-icon">💳</span><span>Payments</span>
+  </div>
+  <div class="nav-item" id="nav-creatives" onclick="showPage('creatives')">
+    <span class="nav-icon">🖼️</span><span>Creatives</span>
+  </div>
+
+  <div class="sidebar-section-label">Tools</div>
+  <div class="nav-item" id="nav-tracking" onclick="showPage('tracking')">
+    <span class="nav-icon">🔗</span><span>Tracking Links</span>
+  </div>
+  <div class="nav-item" id="nav-postbacks" onclick="showPage('postbacks')">
+    <span class="nav-icon">⚡</span><span>Postbacks/API</span>
+  </div>
+  <div class="nav-item" id="nav-notifications" onclick="showPage('notifications')">
+    <span class="nav-icon">🔔</span><span>Notifications</span>
+    <span class="nav-badge">3</span>
+  </div>
+  <div class="nav-item" id="nav-settings" onclick="showPage('settings')">
+    <span class="nav-icon">⚙️</span><span>Settings</span>
+  </div>
+
+  <div class="sidebar-bottom">
+    <div class="user-email" id="sidebar-email">affiliate@example.com</div>
+    <button class="btn-logout" onclick="handleLogout()">🚪 Log Out</button>
+  </div>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════
+     MAIN
+════════════════════════════════════════════════════ -->
+<div id="main">
+
+  <!-- HEADER -->
+  <header id="header">
+    <div class="header-titles">
+      <h1>Affiliate Dashboard</h1>
+      <p>Monitor casino traffic, FTDs, revenue, and commissions</p>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-outline" onclick="showToast('📊 Generating report...', 2500)">📤 Export Report</button>
+      <button class="btn btn-primary" onclick="showToast('🔗 Link created and copied!', 2000)">+ Create Link</button>
+    </div>
+  </header>
+
+  <!-- FILTER BAR -->
+  <div id="filterbar">
+    <div class="date-btns" id="date-btns">
+      <button class="date-btn" onclick="setDateRange(this,'today')">Today</button>
+      <button class="date-btn" onclick="setDateRange(this,'7d')">7D</button>
+      <button class="date-btn active" onclick="setDateRange(this,'30d')">30D</button>
+      <button class="date-btn" onclick="setDateRange(this,'90d')">90D</button>
+      <button class="date-btn" onclick="setDateRange(this,'custom')">Custom</button>
+    </div>
+    <div class="filter-sep"></div>
+    <select class="filter-select" onchange="showToast('🔄 Filtering by brand...')">
+      <option value="">All Brands</option>
+      <option value="cryptora">Cryptora Casino</option>
+    </select>
+    <select class="filter-select" onchange="showToast('🔄 Filtering by GEO...')">
+      <option value="">All GEOs</option>
+    </select>
+    <select class="filter-select" onchange="showToast('🔄 Filtering by source...')">
+      <option value="">All Sources</option>
+    </select>
+    <select class="filter-select" onchange="showToast('🔄 Filtering by device...')">
+      <option value="">All Devices</option>
+    </select>
+    <select class="filter-select" onchange="showToast('🔄 Commission model changed...')">
+      <option value="">All Models</option>
+      <option>CPA</option><option>RevShare</option><option>Hybrid</option>
+    </select>
+    <input class="filter-input" type="text" placeholder="SubID filter" onchange="showToast('🔄 SubID filter applied...')">
+    <div class="filter-sep"></div>
+    <button class="btn btn-outline btn-sm" onclick="showToast('📁 CSV export started...')">⬇ Export CSV</button>
+  </div>
+
+  <!-- CONTENT -->
+  <div id="content">
+
+    <!-- PAGE: dashboard -->
+    <div class="page-view" id="page-dashboard">
+      <!-- ── KPI CARDS ── -->
+    <div style="margin-bottom:20px">
+      <div class="section-title">Key Performance Indicators <span class="tag kpi-period-label">Last 30 Days</span></div>
+      <div class="kpi-grid">
+        <div class="kpi-card" style="border-left-color:#3b82f6">
+          <div class="kpi-label">Clicks</div>
+          <div class="kpi-value" id="kv-clicks">—</div>
+          <div class="kpi-delta neutral" id="kd-clicks">— no prev period data</div>
+        </div>
+        <div class="kpi-card" style="border-left-color:#8b5cf6">
+          <div class="kpi-label">Registrations</div>
+          <div class="kpi-value" id="kv-regs">—</div>
+          <div class="kpi-delta neutral" id="kd-regs">— no prev period data</div>
+        </div>
+        <div class="kpi-card" style="border-left-color:#10b981">
+          <div class="kpi-label">First Time Deposits</div>
+          <div class="kpi-value" id="kv-ftd">—</div>
+          <div class="kpi-delta neutral" id="kd-ftd">— no prev period data</div>
+        </div>
+        <div class="kpi-card" style="border-left-color:#f0c040">
+          <div class="kpi-label">Conv. Rate (Reg→FTD)</div>
+          <div class="kpi-value" id="kv-conv">—</div>
+          <div class="kpi-delta neutral" id="kd-conv">→ Stable</div>
+        </div>
+        <div class="kpi-card" style="border-left-color:#06b6d4">
+          <div class="kpi-label">Total Deposits</div>
+          <div class="kpi-value" id="kv-dep">—</div>
+          <div class="kpi-delta neutral" id="kd-dep">— no prev period data</div>
+        </div>
+      </div>
+      <div class="kpi-grid">
+        <div class="kpi-card" style="border-left-color:#ef4444">
+          <div class="kpi-label">NGR (Net Gaming Revenue)</div>
+          <div class="kpi-value" id="kv-ngr">—</div>
+          <div class="kpi-delta neutral" id="kd-ngr">— no prev period data</div>
+        </div>
+        <div class="kpi-card" style="border-left-color:#10b981">
+          <div class="kpi-label">Total Earnings</div>
+          <div class="kpi-value" id="kv-earn">—</div>
+          <div class="kpi-delta neutral" id="kd-earn">— no prev period data</div>
+        </div>
+        <div class="kpi-card" style="border-left-color:#f59e0b">
+          <div class="kpi-label">Pending</div>
+          <div class="kpi-value" id="kv-pending">—</div>
+          <div class="kpi-delta neutral">→ Awaiting approval</div>
+        </div>
+        <div class="kpi-card" style="border-left-color:#3b82f6">
+          <div class="kpi-label">Approved</div>
+          <div class="kpi-value" id="kv-approved">—</div>
+          <div class="kpi-delta up">▲ Ready to pay</div>
+        </div>
+        <div class="kpi-card" style="border-left-color:#f0c040">
+          <div class="kpi-label">Paid Out</div>
+          <div class="kpi-value" id="kv-paid">—</div>
+          <div class="kpi-delta up">▲ This period</div>
+        </div>
+      </div>
+    </div>
+      <div style="height:20px"></div>
+      <!-- ── CHARTS ── -->
+    <div class="section-title" id="section-charts">Analytics <span class="tag">Visual Overview</span></div>
+    <div class="charts-grid" style="margin-bottom:24px">
+      <div class="chart-card">
+        <div class="chart-card-title">
+          Revenue & Earnings Trend
+          <span class="muted">Last 30 days — NGR vs Commissions</span>
+        </div>
+        <div class="chart-wrap"><canvas id="chart-revenue"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-card-title">
+          Conversion Funnel
+          <span class="muted">Clicks → Registrations → FTDs</span>
+        </div>
+        <div class="chart-wrap"><canvas id="chart-funnel"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-card-title">
+          Top GEOs
+          <span class="muted">Traffic distribution by country</span>
+        </div>
+        <div class="chart-wrap"><canvas id="chart-geo"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-card-title">
+          Device Split
+          <span class="muted">Mobile vs Desktop vs Tablet</span>
+        </div>
+        <div class="chart-wrap"><canvas id="chart-device"></canvas></div>
+      </div>
+    </div>
+
+    <!-- ── PERFORMANCE TABLE ── -->
+    </div>
+
+    <!-- PAGE: reports -->
+    <div class="page-view" id="page-reports" style="display:none">
+      <div class="table-wrap" id="section-perf">
+      <div class="table-header">
+        <div class="section-title" style="margin-bottom:0">Performance Report <span class="tag">0 entries</span></div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-outline btn-sm" onclick="showToast('📊 Exporting performance data...')">⬇ CSV</button>
+          <button class="btn btn-outline btn-sm" onclick="showToast('📧 Report emailed!')">📧 Email</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto">
+        <table id="perf-table">
+          <thead>
+            <tr>
+              <th onclick="sortTable('perf',0)">Date <span class="sort-arrow">↕</span></th>
+              <th onclick="sortTable('perf',1)">Brand <span class="sort-arrow">↕</span></th>
+              <th onclick="sortTable('perf',2)">GEO <span class="sort-arrow">↕</span></th>
+              <th onclick="sortTable('perf',3)">Source <span class="sort-arrow">↕</span></th>
+              <th onclick="sortTable('perf',4)">Campaign <span class="sort-arrow">↕</span></th>
+              <th onclick="sortTable('perf',5)">SubID <span class="sort-arrow">↕</span></th>
+              <th onclick="sortTable('perf',6)">Clicks <span class="sort-arrow">↕</span></th>
+              <th onclick="sortTable('perf',7)">Unique <span class="sort-arrow">↕</span></th>
+              <th onclick="sortTable('perf',8)">Regs <span class="sort-arrow">↕</span></th>
+              <th onclick="sortTable('perf',9)">FTD <span class="sort-arrow">↕</span></th>
+              <th onclick="sortTable('perf',10)">Conv% <span class="sort-arrow">↕</span></th>
+              <th onclick="sortTable('perf',11)">Deposits <span class="sort-arrow">↕</span></th>
+              <th onclick="sortTable('perf',12)">Withdrawals <span class="sort-arrow">↕</span></th>
+              <th onclick="sortTable('perf',13)">NGR <span class="sort-arrow">↕</span></th>
+              <th onclick="sortTable('perf',14)">Commission <span class="sort-arrow">↕</span></th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="perf-tbody"></tbody>
+        </table>
+      </div>
+      <div class="table-footer">
+        <span id="perf-info">Showing 1–10 of 15</span>
+        <div class="pagination" id="perf-pages"></div>
+      </div>
+    </div>
+
+    <!-- ── PLAYERS BLOCK ── -->
+    </div>
+
+    <!-- PAGE: games -->
+    <div class="page-view" id="page-games" style="display:none">
+      <div class="section-title">Game Performance <span class="tag" id="games-count-tag">—</span></div>
+
+      <!-- Provider breakdown row -->
+      <div class="stats-row" style="margin-bottom:20px" id="providers-row">
+        <div style="color:var(--muted);font-size:0.85rem;padding:16px">Loading provider data…</div>
+      </div>
+
+      <!-- Top Games table -->
+      <div class="table-wrap" style="padding:0">
+        <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+          <span style="font-weight:600;color:var(--text)">Top Games by GGR</span>
+          <span style="font-size:0.78rem;color:var(--muted)">Your referred players only</span>
+        </div>
+        <div id="top-games-body" style="padding:16px">
+          <div style="text-align:center;color:var(--muted);padding:32px">Loading…</div>
+        </div>
+      </div>
+    </div>
+
+<!-- PAGE: brands -->
+    <div class="page-view" id="page-brands" style="display:none">
+      <div class="section-title">Brands <span class="tag">Partner Programs</span></div>
+      <div style="padding:60px;text-align:center;background:var(--bg-card);border-radius:12px;border:1px solid var(--border)">
+        <div style="font-size:2.5rem;margin-bottom:16px">🏷️</div>
+        <div style="font-size:1rem;font-weight:600;color:var(--text);margin-bottom:8px">No brands configured yet</div>
+        <div style="color:var(--muted);font-size:0.85rem">Contact your affiliate manager to get access to additional brands</div>
+      </div>
+    </div>
+
+    <!-- PAGE: campaigns -->
+    <div class="page-view" id="page-campaigns" style="display:none">
+      <div class="section-title">Campaigns <span class="tag">Your Traffic Campaigns</span></div>
+      <div style="padding:60px;text-align:center;background:var(--bg-card);border-radius:12px;border:1px solid var(--border)">
+        <div style="font-size:2.5rem;margin-bottom:16px">📣</div>
+        <div style="font-size:1rem;font-weight:600;color:var(--text);margin-bottom:8px">No campaigns yet</div>
+        <div style="color:var(--muted);font-size:0.85rem">Create tracking links to start running campaigns</div>
+        <button onclick="showPage('tracking')" style="margin-top:16px;padding:10px 22px;background:var(--accent-blue);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.85rem">Create Tracking Link</button>
+      </div>
+    </div>
+
+    <!-- PAGE: players -->
+    <div class="page-view" id="page-players" style="display:none">
+      <div class="table-wrap" id="section-players">
+      <div class="table-header">
+        <div class="section-title" style="margin-bottom:0">Players <span class="tag">Referred Players</span></div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span style="font-size:0.78rem;color:var(--muted)" id="players-count">0 referred players</span>
+          <button class="btn btn-outline btn-sm" onclick="showToast('📋 Player export started...')">⬇ Export</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr>
+              <th>Player ID</th>
+              <th>Reg Date</th>
+              <th>First Deposit</th>
+              <th>Total Deposits</th>
+              <th>Last Activity</th>
+              <th>KYC</th>
+              <th>Segment</th>
+              <th>Fraud Risk</th>
+            </tr>
+          </thead>
+          <tbody id="players-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── COMMISSION BLOCK ── -->
+    </div>
+
+    <!-- PAGE: commissions -->
+    <div class="page-view" id="page-commissions" style="display:none">
+      <div id="section-commission">
+      <div class="section-title">Commission Breakdown <span class="tag">Current Period</span></div>
+      <div class="two-col">
+        <div class="commission-left">
+          <div class="comm-row"><span class="comm-label">CPA Earnings</span><span class="comm-value green comm-cpa-val">$0.00</span></div>
+          <div class="comm-row"><span class="comm-label">RevShare Earnings</span><span class="comm-value green comm-rs-val">$0.00</span></div>
+          <div class="comm-row"><span class="comm-label">Hybrid Bonus</span><span class="comm-value">$0.00</span></div>
+          <div class="divider"></div>
+          <div class="comm-row"><span class="comm-label">Hold Amount</span><span class="comm-value red" id="comm-hold">$0.00</span></div>
+          <div class="comm-row"><span class="comm-label">Deductions</span><span class="comm-value red" id="comm-deduct">$0.00</span></div>
+          <div class="comm-row"><span class="comm-label">Negative Carryover</span><span class="comm-value">$0.00</span></div>
+          <div class="divider"></div>
+          <div class="comm-total">
+            <span>Final Approved</span>
+            <span class="val comm-final-val">$0.00</span>
+          </div>
+          <div class="mini-stat">
+            <div class="mini-stat-item">
+              <div class="mini-stat-val revshare-pct" style="color:var(--green)">25%</div>
+              <div class="mini-stat-lbl">RevShare Rate</div>
+            </div>
+            <div class="mini-stat-item">
+              <div class="mini-stat-val" id="cpa-per-ftd" style="color:var(--accent-blue)">$0</div>
+              <div class="mini-stat-lbl">CPA Per FTD</div>
+            </div>
+          </div>
+        </div>
+        <div class="commission-right">
+          <div class="section-title" style="margin-bottom:12px;font-size:0.88rem">Next Payment</div>
+          <div class="payment-info">
+            <div class="payment-info-row"><span class="lbl">Payment Date</span><span class="val" id="comm-next-date">1st of each month</span></div>
+            <div class="payment-info-row"><span class="lbl">Method</span><span class="val">🪙 USDT TRC-20</span></div>
+            <div class="payment-info-row"><span class="lbl">Expected Amount</span><span class="val comm-final-val" style="color:var(--green)">$0.00</span></div>
+            <div class="payment-info-row"><span class="lbl">Wallet</span><span class="val" id="comm-wallet" style="font-family:monospace;font-size:0.76rem">—</span></div>
+          </div>
+          <div class="divider"></div>
+          <div style="margin-top:12px">
+            <div style="font-size:0.82rem;font-weight:600;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.05em;">Payment History</div>
+            <table style="width:100%;font-size:0.8rem;border-collapse:collapse">
+              <thead>
+                <tr>
+                  <th style="text-align:left;padding:5px 8px;font-size:0.7rem;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border);cursor:default;background:none">Date</th>
+                  <th style="text-align:left;padding:5px 8px;font-size:0.7rem;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border);cursor:default;background:none">Amount</th>
+                  <th style="text-align:left;padding:5px 8px;font-size:0.7rem;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border);cursor:default;background:none">Method</th>
+                  <th style="text-align:left;padding:5px 8px;font-size:0.7rem;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border);cursor:default;background:none">TxID</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td colspan="4" id="comm-hist-empty" style="text-align:center;padding:24px;color:var(--muted)">No payment history yet.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── MARKETING TOOLS ── -->
+    </div>
+
+    <!-- PAGE: payments -->
+    <div class="page-view" id="page-payments" style="display:none">
+      <div class="section-title">Payments <span class="tag">Payout History</span></div>
+      <div class="table-wrap">
+        <div style="padding:20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)">
+          <div class="section-title" style="margin:0">Payout History</div>
+        </div>
+        <table>
+          <thead><tr>
+            <th>Date</th><th>Amount</th><th>Method</th><th>Wallet</th><th>Status</th>
+          </tr></thead>
+          <tbody id="payments-tbody">
+            <tr><td colspan="5" style="text-align:center;padding:40px;color:var(--muted)">No payment history yet.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- PAGE: creatives -->
+    <div class="page-view" id="page-creatives" style="display:none">
+      <div id="section-tools" style="margin-bottom:10px">
+      <div class="section-title">Marketing Tools <span class="tag">Promote & Track</span></div>
+    </div>
+    <div class="tools-grid">
+
+      <!-- Tracking Links -->
+      <div class="tool-card">
+        <div class="tool-card-title"><span class="tool-icon">🔗</span> Tracking Links</div>
+        <div style="font-size:0.78rem;color:var(--muted);margin-bottom:10px">Your unique referral link with SubID support</div>
+        <div class="copy-row">
+          <input class="copy-input" type="text" id="ref-link" id="mkt-ref-link" value="https://cryptora.live/?ref=..." readonly>
+          <button class="btn-copy" onclick="copyText('ref-link')">📋 Copy</button>
+        </div>
+        <div style="margin-top:10px;font-size:0.76rem;color:var(--muted)">Add SubID: append <span style="font-family:monospace;color:var(--cyan)">?sub=YOUR_ID</span></div>
+        <div class="copy-row" style="margin-top:8px">
+          <input class="copy-input" type="text" id="ref-link-sub" id="mkt-ref-link-sub" value="https://cryptora.live/?ref=...&sub=campaign1" readonly>
+          <button class="btn-copy" onclick="copyText('ref-link-sub')">📋 Copy</button>
+        </div>
+      </div>
+
+      <!-- Promo Banners -->
+      <div class="tool-card">
+        <div class="tool-card-title"><span class="tool-icon">🖼️</span> Promo Banners</div>
+        <div style="font-size:0.78rem;color:var(--muted);margin-bottom:10px">Download branded banners for your campaigns</div>
+        <div class="banner-list">
+          <div class="banner-item">
+            <span style="color:var(--text);font-weight:600">728×90 Leaderboard</span>
+            <span class="banner-size">HTML5 / PNG</span>
+            <span class="banner-download" onclick="showToast('⬇ Downloading 728×90...')">⬇ Download</span>
+          </div>
+          <div class="banner-item">
+            <span style="color:var(--text);font-weight:600">300×250 Rectangle</span>
+            <span class="banner-size">HTML5 / PNG</span>
+            <span class="banner-download" onclick="showToast('⬇ Downloading 300×250...')">⬇ Download</span>
+          </div>
+          <div class="banner-item">
+            <span style="color:var(--text);font-weight:600">160×600 Skyscraper</span>
+            <span class="banner-size">HTML5 / PNG</span>
+            <span class="banner-download" onclick="showToast('⬇ Downloading 160×600...')">⬇ Download</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Landing Pages -->
+      <div class="tool-card">
+        <div class="tool-card-title"><span class="tool-icon">🌐</span> Landing Pages</div>
+        <div style="font-size:0.78rem;color:var(--muted);margin-bottom:10px">Optimized landing pages with your ref code embedded</div>
+        <div class="lp-list">
+          <div class="lp-item">
+            <span class="lp-url">cryptora.live/lp/welcome</span>
+            <span class="lp-cr">CR: 6.2%</span>
+            <button class="btn-copy btn-sm" onclick="copyVal('https://cryptora.live/lp/welcome?ref=AFF-48291-XK')">📋</button>
+          </div>
+          <div class="lp-item">
+            <span class="lp-url">cryptora.live/lp/slots</span>
+            <span class="lp-cr">CR: 8.4%</span>
+            <button class="btn-copy btn-sm" onclick="copyVal('https://cryptora.live/lp/slots?ref=AFF-48291-XK')">📋</button>
+          </div>
+          <div class="lp-item">
+            <span class="lp-url">cryptora.live/lp/crypto-bonus</span>
+            <span class="lp-cr">CR: 11.1%</span>
+            <button class="btn-copy btn-sm" onclick="copyVal('https://cryptora.live/lp/crypto-bonus?ref=AFF-48291-XK')">📋</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Promo Codes -->
+      <div class="tool-card">
+        <div class="tool-card-title"><span class="tool-icon">🎁</span> Promo Codes</div>
+        <div style="font-size:0.78rem;color:var(--muted);margin-bottom:10px">Exclusive codes for your audience</div>
+        <table class="promo-table">
+          <thead><tr><th>Code</th><th>Offer</th><th>Uses</th><th>Expires</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><span style="font-family:monospace;color:var(--gold);font-weight:700">CRYPTO200</span></td>
+              <td>200% up to $500</td>
+              <td>412/1000</td>
+              <td>Apr 30</td>
+            </tr>
+            <tr>
+              <td><span style="font-family:monospace;color:var(--gold);font-weight:700">AFFVIP50</span></td>
+              <td>50 Free Spins</td>
+              <td>218/500</td>
+              <td>Mar 31</td>
+            </tr>
+            <tr>
+              <td><span style="font-family:monospace;color:var(--gold);font-weight:700">BTCBONUS</span></td>
+              <td>150% BTC Deposit</td>
+              <td>87/∞</td>
+              <td>No limit</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Postback / API -->
+      <div class="tool-card">
+        <div class="tool-card-title"><span class="tool-icon">⚡</span> Postback / API</div>
+        <div style="font-size:0.78rem;color:var(--muted);margin-bottom:8px">Configure server-side postback for conversion tracking</div>
+        <input class="postback-url-input" type="text" id="postback-url-cre" placeholder="https://yourtracker.com/postback?event={event}&subid={subid}&amount={amount}">
+        <button class="btn btn-outline btn-sm" style="margin-bottom:10px" onclick="savePostback('postback-url-cre')">💾 Save Postback URL</button>
+        <div style="font-size:0.75rem;color:var(--muted);margin-bottom:5px">Available Macros:</div>
+        <div class="macro-list">
+          <span class="macro-tag">{event}</span>
+          <span class="macro-tag">{subid}</span>
+          <span class="macro-tag">{amount}</span>
+          <span class="macro-tag">{player_id}</span>
+          <span class="macro-tag">{ftd}</span>
+          <span class="macro-tag">{geo}</span>
+          <span class="macro-tag">{brand}</span>
+          <span class="macro-tag">{timestamp}</span>
+          <span class="macro-tag">{commission}</span>
+        </div>
+      </div>
+
+      <!-- API Access -->
+      <div class="tool-card">
+        <div class="tool-card-title"><span class="tool-icon">🔑</span> API Access</div>
+        <div style="font-size:0.78rem;color:var(--muted);margin-bottom:8px">Integrate Cryptora data into your own systems</div>
+        <div style="font-size:0.75rem;color:var(--muted);margin-bottom:5px">Your API Key</div>
+        <div class="api-key-wrap">
+          <input class="api-key-field" type="password" id="api-key-field-cre" value="ck_live_48291xk9BzAffiliateSecretToken2026">
+          <button class="btn-copy" onclick="toggleApiKeyById('api-key-field-cre')">👁</button>
+          <button class="btn-copy" onclick="copyText('api-key-field-cre')">📋</button>
+        </div>
+        <div style="font-size:0.75rem;color:var(--muted);margin-bottom:5px">Base URL</div>
+        <div class="copy-row">
+          <input class="copy-input" type="text" id="api-base-cre" value="https://cryptora.live/api/affiliate/" readonly>
+          <button class="btn-copy" onclick="copyText('api-base-cre')">📋</button>
+        </div>
+        <div style="margin-top:10px;display:flex;gap:8px">
+          <button class="btn btn-outline btn-sm" onclick="showToast('📄 Opening API docs...')">📄 Docs</button>
+          <button class="btn btn-outline btn-sm" onclick="showToast('🔄 Regenerating key...')">🔄 Regen Key</button>
+        </div>
+      </div>
+
+    </div><!-- /tools-grid -->
+
+    <!-- ── NOTIFICATIONS ── -->
+    </div>
+
+    <!-- PAGE: tracking -->
+    <div class="page-view" id="page-tracking" style="display:none">
+      <div class="section-title">Tracking Links <span class="tag">Your Links</span></div>
+      <div class="tools-grid">
+        <div class="tool-card" style="grid-column:span 2">
+          <div class="tool-card-title">🔗 Your Referral Links</div>
+          <div class="tool-field-label">Main referral link</div>
+          <div style="display:flex;gap:10px;margin-bottom:16px">
+            <input class="copy-input" type="text" id="ref-link-tracking" readonly style="flex:1"/>
+            <button class="btn-copy" onclick="copyText('ref-link-tracking')">📋 Copy</button>
+          </div>
+          <div class="tool-field-label">With SubID</div>
+          <div style="display:flex;gap:10px;margin-bottom:16px">
+            <input class="copy-input" type="text" id="ref-link-sub-tracking" readonly style="flex:1"/>
+            <button class="btn-copy" onclick="copyText('ref-link-sub-tracking')">📋 Copy</button>
+          </div>
+          <div class="tool-field-label">Custom SubID</div>
+          <div style="display:flex;gap:10px">
+            <input type="text" id="custom-sub" placeholder="e.g. google_de_slot1" style="flex:1;padding:9px 12px;background:var(--bg-main);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:0.85rem"/>
+            <button onclick="generateSubLink()" style="padding:9px 18px;background:var(--accent-blue);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.85rem">Generate</button>
+          </div>
+          <div id="generated-link-wrap" style="display:none;margin-top:12px">
+            <input class="copy-input" type="text" id="generated-link" readonly/>
+            <button class="btn-copy" onclick="copyText('generated-link')" style="margin-top:8px">📋 Copy Link</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAGE: postbacks -->
+    <div class="page-view" id="page-postbacks" style="display:none">
+      <div class="section-title">Postbacks & API <span class="tag">Integration</span></div>
+      <div class="tools-grid">
+        <div class="tool-card" style="grid-column:span 2">
+          <div class="tool-card-title">🔌 Postback URL</div>
+          <p style="color:var(--muted);font-size:0.82rem;margin-bottom:16px">Receive real-time conversion notifications. We send a GET request to your URL on deposit/registration.</p>
+          <div class="tool-field-label">Macros: <code style="background:var(--bg-main);padding:2px 6px;border-radius:4px;font-size:0.76rem">{click_id}</code> <code style="background:var(--bg-main);padding:2px 6px;border-radius:4px;font-size:0.76rem">{player_id}</code> <code style="background:var(--bg-main);padding:2px 6px;border-radius:4px;font-size:0.76rem">{amount}</code> <code style="background:var(--bg-main);padding:2px 6px;border-radius:4px;font-size:0.76rem">{event}</code> <code style="background:var(--bg-main);padding:2px 6px;border-radius:4px;font-size:0.76rem">{sub1}</code></div>
+          <div style="display:flex;gap:10px;margin-bottom:16px">
+            <input type="url" id="postback-url" placeholder="https://your-tracker.com/postback?click_id={click_id}&amount={amount}" style="flex:1;padding:9px 12px;background:var(--bg-main);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:0.83rem"/>
+          </div>
+          <div style="display:flex;gap:10px">
+            <button onclick="savePostback('postback-url')" style="padding:9px 20px;background:var(--accent-blue);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.85rem">Save URL</button>
+            <button onclick="testPostback()" style="padding:9px 20px;background:var(--bg-card);color:var(--text);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:0.85rem">Send Test</button>
+          </div>
+        </div>
+        <div class="tool-card" style="grid-column:span 2">
+          <div class="tool-card-title">🔑 API Access</div>
+          <div class="tool-field-label">API Key</div>
+          <div style="display:flex;gap:10px;margin-bottom:16px;align-items:center">
+            <input type="password" id="api-key-field" value="cr_live_48f2d9a1b7c3e042f6d8" readonly style="flex:1;padding:9px 12px;background:var(--bg-main);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:monospace;font-size:0.83rem"/>
+            <button onclick="toggleApiKey()" style="padding:9px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;cursor:pointer;color:var(--muted)">👁</button>
+            <button onclick="copyVal(document.getElementById('api-key-field').value)" style="padding:9px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;cursor:pointer;color:var(--muted)">📋</button>
+          </div>
+          <div style="color:var(--muted);font-size:0.8rem">API endpoint: <code style="color:var(--accent-blue)">https://cryptora.live/api/affiliate/</code></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAGE: notifications -->
+    <div class="page-view" id="page-notifications" style="display:none">
+      <div id="section-notif">
+      <div class="section-title">Notifications <span class="tag" id="notif-count-tag">0</span></div>
+      <div class="notifications-wrap" id="notif-list">
+        <div style="padding:32px;text-align:center;color:var(--muted)">Loading…</div>
+      </div>
+    </div>
+    </div>
+
+    <!-- PAGE: settings -->
+    <div class="page-view" id="page-settings" style="display:none">
+      <div class="section-title">Settings <span class="tag">Account</span></div>
+      <div style="max-width:560px">
+        <div class="table-wrap" style="padding:24px;margin-bottom:16px">
+          <div style="font-size:0.9rem;font-weight:600;margin-bottom:16px;color:var(--text)">Account Information</div>
+          <div style="margin-bottom:14px">
+            <div style="font-size:0.78rem;color:var(--muted);margin-bottom:6px">Email Address</div>
+            <input type="email" id="settings-email" readonly style="width:100%;padding:9px 12px;background:var(--bg-main);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:0.9rem"/>
+          </div>
+          <div style="margin-bottom:14px">
+            <div style="font-size:0.78rem;color:var(--muted);margin-bottom:6px">Commission Model</div>
+            <input type="text" value="Hybrid (CPA + RevShare)" readonly style="width:100%;padding:9px 12px;background:var(--bg-main);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:0.9rem"/>
+          </div>
+          <div style="margin-bottom:14px">
+            <div style="font-size:0.78rem;color:var(--muted);margin-bottom:6px">RevShare Rate</div>
+            <input type="text" id="settings-revshare" value="25%" readonly style="width:100%;padding:9px 12px;background:var(--bg-main);border:1px solid var(--border);border-radius:8px;color:var(--accent-blue);font-size:0.9rem;font-weight:600"/>
+          </div>
+          <div style="margin-bottom:14px">
+            <div style="font-size:0.78rem;color:var(--muted);margin-bottom:6px">Referral Code</div>
+            <div style="display:flex;gap:8px">
+              <input type="text" id="settings-refcode" readonly style="flex:1;padding:9px 12px;background:var(--bg-main);border:1px solid var(--border);border-radius:8px;color:var(--gold);font-family:monospace;font-size:0.9rem;font-weight:600"/>
+              <button onclick="copyVal(document.getElementById('settings-refcode').value)" style="padding:9px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;cursor:pointer">📋</button>
+            </div>
+          </div>
+        </div>
+        <div class="table-wrap" style="padding:24px">
+          <div style="font-size:0.9rem;font-weight:600;margin-bottom:16px;color:var(--text)">Change Password</div>
+          <div style="margin-bottom:14px">
+            <div style="font-size:0.78rem;color:var(--muted);margin-bottom:6px">Current Password</div>
+            <input type="password" id="settings-old-pwd" style="width:100%;padding:9px 12px;background:var(--bg-main);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:0.9rem"/>
+          </div>
+          <div style="margin-bottom:14px">
+            <div style="font-size:0.78rem;color:var(--muted);margin-bottom:6px">New Password</div>
+            <input type="password" id="settings-new-pwd" style="width:100%;padding:9px 12px;background:var(--bg-main);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:0.9rem"/>
+          </div>
+          <button onclick="changePassword()" style="padding:9px 24px;background:var(--accent-blue);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.85rem">Update Password</button>
+        </div>
+      </div>
+    </div>
+
+    <div style="height:32px"></div>
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<!-- TOAST -->
+<div id="toast"><span class="toast-icon">✅</span><span id="toast-msg">Copied!</span></div>
+
+<script>
+// ═══════════════════════════════════════════
+// DATA
+// ═══════════════════════════════════════════
+// Production mode — no demo data
+const playersData = [];
+const perfData = [];
+
+// ═══════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════
+let perfPage = 1;
+const perfPageSize = 10;
+let perfSortCol = -1;
+let perfSortAsc = true;
+let perfRows = [...perfData];
+
+// ═══════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  checkAuth();
+  // Tables render after auth+API load; show empty state immediately
+  renderPerfTable();
+  renderPlayers();
+});
+
+window.addEventListener('load', () => {
+  renderCharts();
+});
+
+// ═══════════════════════════════════════════
+// AUTH
+// ═══════════════════════════════════════════
+function checkAuth() {
+  const token = localStorage.getItem('aff_token');
+  if (token) {
+    document.getElementById('login-overlay').style.display = 'none';
+    fetchApiData(token);
+  }
+  // else overlay stays visible
+}
+
+async function fetchApiData(token, fromDate, toDate) {
+  try {
+    const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+    const from30d = fromDate || new Date(Date.now()-30*864e5).toISOString().slice(0,10);
+    const toParam = toDate || new Date().toISOString().slice(0,10);
+    const endpointUrls = {
+      me:        'me',
+      stats:     `stats?from=${from30d}&to=${toParam}`,
+      referrals: 'referrals?limit=50',
+      clicks:    `clicks?from=${from30d}&to=${toParam}`,
+      earnings:  `earnings?from=${from30d}&to=${toParam}&limit=500`
+    };
+    const endpoints = Object.keys(endpointUrls);
+    const results = await Promise.allSettled(
+      endpoints.map(ep => fetch(`https://cryptora.live/api/affiliate/${endpointUrls[ep]}`, { headers }).then(r => r.json()))
+    );
+    results.forEach((res, i) => {
+      if (res.status === 'fulfilled') mergeApiData(endpoints[i], res.value);
+    });
+  } catch(e) {
+    console.warn('[Cryptora] API fetch failed, using demo data:', e.message);
+  }
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function fmt(n) { return Number(n||0).toLocaleString(); }
+function fmtUsd(n) { return '$' + Number(n||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function setEl(id, v) { const el = document.getElementById(id); if(el) el.textContent = v; }
+function pct(n) { return (Number(n)||0).toFixed(1) + '%'; }
+function relTime(dateStr) {
+  if (!dateStr) return '—';
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const h = Math.floor(diff/3600000);
+  if (h < 1) return 'Just now';
+  if (h < 24) return h + 'h ago';
+  const d = Math.floor(h/24);
+  if (d === 1) return 'Yesterday';
+  return d + ' days ago';
+}
+
+// ── Global state for live data ────────────────────────────────────────────────
+window._apiData = { me: null, stats: null, clicks: null, referrals: null, earnings: null };
+
+function mergeApiData(endpoint, data) {
+  if (!data || data.error) return;
+  window._apiData[endpoint] = data;
+
+  // ── /me ──────────────────────────────────────────────────────────────────
+  if (endpoint === 'me') {
+    const displayEmail = data.email || (window._apiData?.auth?.email) || '';
+    if (displayEmail) setEl('sidebar-email', displayEmail);
+    // also get email from affiliate_accounts if available
+    if (data.account_email) setEl('sidebar-email', data.account_email);
+    // Update ref link everywhere
+    const refLink = data.ref_link || ('https://cryptora.live/?ref=' + (data.ref_code || ''));
+    document.querySelectorAll('[id^="ref-link"]').forEach(el => {
+      if (el.id === 'ref-link') el.value = refLink;
+      else if (el.id === 'ref-link-sub') el.value = refLink + '?sub=campaign1';
+      else el.value = refLink;
+    });
+    // Update commission model display
+    if (data.commission_type) {
+      document.querySelectorAll('.commission-type-label').forEach(el => {
+        el.textContent = data.commission_type.charAt(0).toUpperCase() + data.commission_type.slice(1);
+      });
+    }
+    if (data.revshare_percent != null) {
+      document.querySelectorAll('.revshare-pct').forEach(el => { el.textContent = data.revshare_percent + '%'; });
+    }
+    if (data.commission_type === 'cpa' || data.commission_type === 'hybrid') {
+      const cpaEl = document.getElementById('cpa-per-ftd');
+      if (cpaEl && data.cpa_amount) cpaEl.textContent = '$' + data.cpa_amount;
+    }
+  }
+
+  // ── /stats ───────────────────────────────────────────────────────────────
+  if (endpoint === 'stats') {
+    // { ggr, ngr, players, depositors, commission, revshare_percent, balance }
+    setEl('kv-ngr',      fmtUsd(data.ngr));
+    setEl('kv-earn',     fmtUsd(data.commission));
+    setEl('kv-regs',     fmt(data.players));
+    setEl('kv-ftd',      fmt(data.depositors));
+    setEl('kv-dep',      fmtUsd(data.total_deposits || 0));
+    setEl('kv-pending',  fmtUsd(0));
+    setEl('kv-approved', fmtUsd(data.commission));
+    setEl('kv-paid',     fmtUsd(data.total_paid || 0));
+    // Conv rate
+    const clicks = window._apiData.clicks;
+    const totalClicks = clicks ? (clicks.total_clicks || 0) : 0;
+    if (totalClicks > 0 && data.depositors > 0) {
+      setEl('kv-conv', pct(data.depositors / totalClicks * 100));
+    } else {
+      setEl('kv-conv', '0.0%');
+    }
+    // Update funnel chart
+    if (window._funnelChart) {
+      const d = window._funnelChart.data.datasets[0].data;
+      d[2] = data.players || 0;
+      d[3] = data.depositors || 0;
+      window._funnelChart.update('none');
+    }
+  }
+
+  // ── /clicks ──────────────────────────────────────────────────────────────
+  if (endpoint === 'clicks') {
+    const rows = data.rows || [];
+    const totalClicks = data.total_clicks != null ? data.total_clicks : rows.reduce((s,r) => s+(r.clicks||0), 0);
+    setEl('kv-clicks', fmt(totalClicks));
+
+    // Conv rate
+    const stats = window._apiData.stats;
+    if (stats && totalClicks > 0 && stats.depositors > 0) {
+      setEl('kv-conv', pct(stats.depositors / totalClicks * 100));
+    }
+
+    // Update funnel chart
+    if (window._funnelChart) {
+      window._funnelChart.data.datasets[0].data[0] = totalClicks;
+      window._funnelChart.data.datasets[0].data[1] = totalClicks; // unique = same as total (no UA dedup)
+      window._funnelChart.update('none');
+    }
+
+    // Update revenue chart with clicks-by-day
+    if (window._revenueChart && rows.length > 0) {
+      // Build date map from API rows
+      const dateMap = {};
+      rows.forEach(r => { dateMap[r.date] = r.clicks || 0; });
+      // Generate 30-day labels and fill in
+      const newLabels = [], newClicks = [];
+      for (let i = 29; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const key = d.toISOString().slice(0,10);
+        const label = d.toLocaleDateString('en-GB',{day:'2-digit',month:'short'});
+        newLabels.push(label);
+        newClicks.push(dateMap[key] || 0);
+      }
+      window._revenueChart.data.labels = newLabels;
+      window._revenueChart.data.datasets[0].data = newClicks.map(() => 0); // NGR: populated when earnings data available
+      window._revenueChart.data.datasets[1].data = newClicks.map(() => 0); // earnings: populated from /earnings endpoint
+      window._revenueChart.update('none');
+    }
+
+    // Update perf table with click rows
+    if (rows.length > 0) {
+      perfRows = rows.map(r => ({
+        date: r.date || '—',
+        brand: 'Cryptora Casino',
+        geo: r.geo || '—',
+        src: r.sub1 || 'Direct',
+        camp: r.campaign || r.sub1 || '—',
+        sub: r.sub1 || '—',
+        clicks: r.clicks || 0,
+        uniq: r.clicks || 0,
+        regs: r.conversions || 0,
+        ftd: r.conversions || 0,
+        conv: r.clicks > 0 ? pct((r.conversions||0) / r.clicks * 100) : '0.0%',
+        dep: '$0.00',
+        wd: '$0.00',
+        ngr: '$0.00',
+        comm: '$0.00',
+        status: 'Active'
+      }));
+      renderPerfTable();
+    }
+  }
+
+  // ── /referrals ───────────────────────────────────────────────────────────
+  if (endpoint === 'referrals') {
+    const refs = data.referrals || [];
+    if (refs.length > 0) {
+      // Rebuild playersData from real referrals
+      playersData.length = 0;
+      refs.slice(0,8).forEach((r, i) => {
+        const segs = ['Regular','High Value','VIP','Low Activity'];
+        playersData.push({
+          id: 'PL-' + (r.referred_user_id || r.id || '00000').toString().replace(/-/g,'').slice(-5).toUpperCase(),
+          reg: r.created_date ? new Date(r.created_date).toLocaleDateString('en-GB') : '—',
+          fdep: r.first_deposit_date ? '✓' : '—',
+          tdep: fmtUsd(r.total_deposits || r.total_wagered || 0),
+          last: relTime(r.last_activity || r.updated_date),
+          kyc: r.kyc_status === 'verified' ? 'Verified' : r.kyc_status === 'pending' ? 'Pending' : 'Not Started',
+          seg: segs[i % 4],
+          fraud: 'Low'
+        });
+      });
+      renderPlayers();
+    }
+  }
+
+  // ── /earnings ────────────────────────────────────────────────────────────
+  if (endpoint === 'earnings') {
+    if (Array.isArray(data) && data.length > 0) {
+      const total = data.reduce((s,e) => s+parseFloat(e.amount||0), 0);
+      setEl('kv-earn', fmtUsd(total));
+      // Breakdown by type
+      const cpa = data.filter(e=>e.type==='cpa').reduce((s,e)=>s+parseFloat(e.amount||0),0);
+      const rs  = data.filter(e=>e.type==='revshare').reduce((s,e)=>s+parseFloat(e.amount||0),0);
+      document.querySelectorAll('.comm-cpa-val').forEach(el=>el.textContent=fmtUsd(cpa));
+      document.querySelectorAll('.comm-rs-val').forEach(el=>el.textContent=fmtUsd(rs));
+      document.querySelectorAll('.comm-final-val').forEach(el=>el.textContent=fmtUsd(total));
+    } else {
+      // Still zero, but set explicitly
+      setEl('kv-earn', fmtUsd(0));
+    }
+  }
+
+  // ── Update commission history table ──────────────────────────────────
+  const allEarnings = window._apiData.earnings;
+  if (Array.isArray(allEarnings) && allEarnings.length > 0) {
+    const histEl = document.getElementById('comm-hist-empty');
+    if (histEl) {
+      const rows = allEarnings.slice(0,10).map(e => {
+        const dt = e.created_date ? new Date(e.created_date).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+        return `<tr>
+          <td style="padding:7px 8px;border-bottom:1px solid var(--border)">${dt}</td>
+          <td style="padding:7px 8px;border-bottom:1px solid var(--border);color:var(--green)">${fmtUsd(e.amount)}</td>
+          <td style="padding:7px 8px;border-bottom:1px solid var(--border)">${(e.type||'revshare').toUpperCase()}</td>
+          <td style="padding:7px 8px;border-bottom:1px solid var(--border);font-family:monospace;font-size:0.72rem;color:var(--muted)">${e.id ? e.id.slice(-8) : '—'}</td>
+        </tr>`;
+      }).join('');
+      histEl.parentElement.innerHTML = rows;
+    }
+  }
+}
+
+document.getElementById('btn-do-login').addEventListener('click', doLogin);
+document.getElementById('login-password').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+// demo mode removed
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
+  const btn = document.getElementById('btn-do-login');
+  errEl.style.display = 'none';
+  if (!email || !password) { errEl.textContent = '⚠️ Please enter email and password.'; errEl.style.display = 'block'; return; }
+  btn.textContent = 'Signing in...'; btn.disabled = true;
+  try {
+    const res = await fetch('https://cryptora.live/api/affiliate/auth/login', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ email, password })
+    });
+    const data = await res.json();
+    if (data.token) {
+      localStorage.setItem('aff_token', data.token);
+      document.getElementById('sidebar-email').textContent = email;
+      document.getElementById('login-overlay').style.display = 'none';
+      showToast('✅ Logged in successfully!', 2500);
+      fetchApiData(data.token);
+    } else {
+      errEl.textContent = '❌ ' + (data.message || 'Invalid credentials.');
+      errEl.style.display = 'block';
+    }
+  } catch(e) {
+    errEl.textContent = '⚠️ Network error. Please try again.';
+    errEl.style.display = 'block';
+  }
+  btn.textContent = 'Sign In →'; btn.disabled = false;
+}
+
+function handleLogout() {
+  localStorage.removeItem('aff_token');
+  document.getElementById('login-overlay').style.display = 'flex';
+  showToast('👋 Logged out', 2000);
+}
+
+// ═══════════════════════════════════════════
+// CHARTS
+// ═══════════════════════════════════════════
+function renderCharts() {
+  Chart.defaults.color = '#94a3b8';
+  Chart.defaults.borderColor = '#1f2937';
+  Chart.defaults.font.family = "'Inter', -apple-system, sans-serif";
+  Chart.defaults.font.size = 11;
+
+  // 1. Revenue & Earnings Line Chart — populated by API via updateRevenueChart()
+  const days = [];
+  const ngrVals = [], earnVals = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    days.push(d.toLocaleDateString('en-GB',{day:'2-digit',month:'short'}));
+    ngrVals.push(0);
+    earnVals.push(0);
+  }
+  window._revenueChart = new Chart(document.getElementById('chart-revenue'), {
+    type: 'line',
+    data: {
+      labels: days,
+      datasets: [
+        {
+          label: 'NGR ($)',
+          data: ngrVals,
+          borderColor: '#3b82f6',
+          backgroundColor: 'rgba(59,130,246,0.08)',
+          fill: true,
+          tension: 0.4,
+          pointRadius: 2,
+          borderWidth: 2,
+        },
+        {
+          label: 'Earnings ($)',
+          data: earnVals,
+          borderColor: '#10b981',
+          backgroundColor: 'rgba(16,185,129,0.08)',
+          fill: true,
+          tension: 0.4,
+          pointRadius: 2,
+          borderWidth: 2,
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode:'index', intersect: false },
+      plugins: {
+        legend: { position:'top', labels: { boxWidth:10, padding:16, color:'#94a3b8' } },
+        tooltip: {
+          backgroundColor:'#111827',
+          borderColor:'#1f2937',
+          borderWidth:1,
+          callbacks: { label: ctx => ` ${ctx.dataset.label}: $${ctx.parsed.y.toLocaleString()}` }
+        }
+      },
+      scales: {
+        x: { grid:{ color:'#1a2133' }, ticks:{ maxTicksLimit:8, color:'#64748b' } },
+        y: { grid:{ color:'#1a2133' }, ticks:{ color:'#64748b', callback: v => '$'+v.toLocaleString() } }
+      }
+    }
+  });
+
+  // 2. Funnel - horizontal bar — data updated via API
+  window._funnelChart = new Chart(document.getElementById('chart-funnel'), {
+    type: 'bar',
+    data: {
+      labels: ['Clicks', 'Unique Clicks', 'Registrations', 'FTDs'],
+      datasets: [{
+        label: 'Count',
+        data: [0, 0, 0, 0],
+        backgroundColor: ['rgba(59,130,246,0.7)','rgba(139,92,246,0.7)','rgba(6,182,212,0.7)','rgba(16,185,129,0.7)'],
+        borderRadius: 5,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor:'#111827',
+          borderColor:'#1f2937',
+          borderWidth:1,
+          callbacks: { label: ctx => ` ${ctx.parsed.x.toLocaleString()}` }
+        }
+      },
+      scales: {
+        x: { grid:{ color:'#1a2133' }, ticks:{ color:'#64748b', callback: v => v >= 1000 ? (v/1000).toFixed(0)+'k' : v } },
+        y: { grid:{ display:false }, ticks:{ color:'#94a3b8' } }
+      }
+    }
+  });
+
+  // 3. GEO Doughnut — empty until real GEO data available
+  const geoEl = document.getElementById('chart-geo');
+  if (geoEl) {
+    geoEl.style.display = 'none';
+    const geoParent = geoEl.parentNode;
+    const geoEmpty = document.createElement('div');
+    geoEmpty.style.cssText = 'display:flex;align-items:center;justify-content:center;height:180px;color:#4b5563;font-size:0.85rem;text-align:center';
+    geoEmpty.innerHTML = '🌍<br>GEO data available<br>when clicks arrive';
+    geoParent.appendChild(geoEmpty);
+  }
+
+  // 4. Device Doughnut — empty until real device data available
+  const devEl = document.getElementById('chart-device');
+  if (devEl) {
+    devEl.style.display = 'none';
+    const devParent = devEl.parentNode;
+    const devEmpty = document.createElement('div');
+    devEmpty.style.cssText = 'display:flex;align-items:center;justify-content:center;height:180px;color:#4b5563;font-size:0.85rem;text-align:center';
+    devEmpty.innerHTML = '📱<br>Device data available<br>when clicks arrive';
+    devParent.appendChild(devEmpty);
+  }
+}
+
+// ═══════════════════════════════════════════
+// PERFORMANCE TABLE
+// ═══════════════════════════════════════════
+function getStatusBadge(s) {
+  const map = {
+    'Active':'badge-green',
+    'Pending':'badge-yellow',
+    'Approved':'badge-blue',
+    'Paused':'badge-slate'
+  };
+  return `<span class="badge ${map[s]||'badge-slate'}">${s}</span>`;
+}
+
+function renderPerfTable() {
+  const tbody = document.getElementById('perf-tbody');
+  if (!perfRows.length) {
+    tbody.innerHTML = '<tr><td colspan="16" style="text-align:center;padding:40px;color:var(--muted)">No performance data yet. Traffic data will appear here once clicks are tracked via your referral link.</td></tr>';
+    document.getElementById('perf-info').textContent = 'No data';
+    document.getElementById('perf-pages').innerHTML = '';
+    return;
+  }
+  const start = (perfPage - 1) * perfPageSize;
+  const slice = perfRows.slice(start, start + perfPageSize);
+  tbody.innerHTML = slice.map(r => `
+    <tr>
+      <td>${r.date}</td>
+      <td>${r.brand}</td>
+      <td>${r.geo}</td>
+      <td>${r.src}</td>
+      <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis">${r.camp}</td>
+      <td style="font-family:monospace;font-size:0.76rem;color:var(--muted)">${r.sub}</td>
+      <td>${r.clicks.toLocaleString()}</td>
+      <td>${r.uniq.toLocaleString()}</td>
+      <td>${r.regs}</td>
+      <td style="color:var(--green);font-weight:600">${r.ftd}</td>
+      <td>${r.conv}</td>
+      <td style="color:var(--accent-blue)">${r.dep}</td>
+      <td style="color:var(--red)">${r.wd}</td>
+      <td>${r.ngr}</td>
+      <td style="color:var(--gold);font-weight:600">${r.comm}</td>
+      <td>${getStatusBadge(r.status)}</td>
+    </tr>
+  `).join('');
+
+  const total = perfRows.length;
+  document.getElementById('perf-info').textContent =
+    `Showing ${start+1}–${Math.min(start+perfPageSize, total)} of ${total}`;
+  renderPerfPagination(total);
+}
+
+function renderPerfPagination(total) {
+  const pages = Math.ceil(total / perfPageSize);
+  const container = document.getElementById('perf-pages');
+  let html = `<button class="page-btn" onclick="changePerfPage(${perfPage-1})" ${perfPage===1?'disabled':''}>‹</button>`;
+  for (let i = 1; i <= pages; i++) {
+    html += `<button class="page-btn ${i===perfPage?'active':''}" onclick="changePerfPage(${i})">${i}</button>`;
+  }
+  html += `<button class="page-btn" onclick="changePerfPage(${perfPage+1})" ${perfPage===pages?'disabled':''}>›</button>`;
+  container.innerHTML = html;
+}
+
+function changePerfPage(p) {
+  const pages = Math.ceil(perfRows.length / perfPageSize);
+  if (p < 1 || p > pages) return;
+  perfPage = p;
+  renderPerfTable();
+}
+
+function sortTable(tableId, colIdx) {
+  if (tableId !== 'perf') return;
+  if (perfSortCol === colIdx) { perfSortAsc = !perfSortAsc; }
+  else { perfSortCol = colIdx; perfSortAsc = true; }
+  const keys = ['date','brand','geo','src','camp','sub','clicks','uniq','regs','ftd','conv','dep','wd','ngr','comm','status'];
+  const key = keys[colIdx];
+  perfRows.sort((a,b) => {
+    let av = a[key], bv = b[key];
+    if (typeof av === 'string' && av.startsWith('$')) av = parseFloat(av.replace(/[$,]/g,''));
+    if (typeof bv === 'string' && bv.startsWith('$')) bv = parseFloat(bv.replace(/[$,]/g,''));
+    if (typeof av === 'number') return perfSortAsc ? av-bv : bv-av;
+    return perfSortAsc ? String(av).localeCompare(String(bv)) : String(bv).localeCompare(String(av));
+  });
+  // Update header arrows
+  document.querySelectorAll('#perf-table th').forEach((th, i) => {
+    th.classList.toggle('sorted', i === colIdx);
+    const arrow = th.querySelector('.sort-arrow');
+    if (arrow) arrow.textContent = i === colIdx ? (perfSortAsc ? '↑' : '↓') : '↕';
+  });
+  perfPage = 1;
+  renderPerfTable();
+}
+
+// ═══════════════════════════════════════════
+// PLAYERS TABLE
+// ═══════════════════════════════════════════
+function renderPlayers() {
+  const kycMap = { 'Verified':'badge-green','Pending':'badge-yellow','Not Started':'badge-slate' };
+  const segMap = { 'VIP':'badge-gold','High Value':'badge-blue','Regular':'badge-slate','Low Activity':'badge-slate' };
+  const fraudMap = { 'Low':'badge-green','Medium':'badge-yellow','High':'badge-red' };
+  const tbody = document.getElementById('players-tbody');
+  const countEl = document.getElementById('players-count');
+  if (countEl) countEl.textContent = playersData.length + ' referred player' + (playersData.length !== 1 ? 's' : '');
+  if (!playersData.length) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted)">No referred players yet. Share your referral link to start tracking players.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = playersData.map(p => `
+    <tr>
+      <td style="font-family:monospace;font-weight:600;color:var(--accent-blue)">${p.id}</td>
+      <td style="color:var(--muted)">${p.reg}</td>
+      <td style="color:var(--green)">${p.fdep}</td>
+      <td style="color:var(--text);font-weight:600">${p.tdep}</td>
+      <td style="color:var(--muted)">${p.last}</td>
+      <td><span class="badge ${kycMap[p.kyc]||'badge-slate'}">${p.kyc}</span></td>
+      <td><span class="badge ${segMap[p.seg]||'badge-slate'}">${p.seg}</span></td>
+      <td><span class="badge ${fraudMap[p.fraud]||'badge-slate'}">${p.fraud}</span></td>
+    </tr>
+  `).join('');
+}
+
+// ═══════════════════════════════════════════
+// FILTER DATE RANGE
+// ═══════════════════════════════════════════
+function setDateRange(el, range) {
+  document.querySelectorAll('.date-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  const now = new Date();
+  const fmt = d => d.toISOString().slice(0,10);
+  let from, to = fmt(now);
+  if (range === 'today') { from = to; }
+  else if (range === '7d') { const d = new Date(now); d.setDate(d.getDate()-7); from = fmt(d); }
+  else if (range === '30d') { const d = new Date(now); d.setDate(d.getDate()-30); from = fmt(d); }
+  else if (range === '90d') { const d = new Date(now); d.setDate(d.getDate()-90); from = fmt(d); }
+  else { showToast('📅 Custom range — select dates', 2000); return; }
+  // Update KPI badge
+  const labels = {today:'Today', '7d':'Last 7 Days', '30d':'Last 30 Days', '90d':'Last 90 Days'};
+  document.querySelectorAll('.kpi-period-label').forEach(el => el.textContent = labels[range] || 'Custom');
+  // Re-fetch API with new date range
+  const token = localStorage.getItem('aff_token');
+  if (token) fetchApiData(token, from, to);
+}
+
+// ═══════════════════════════════════════════
+// UTILITIES
+// ═══════════════════════════════════════════
+function copyText(inputId) {
+  const el = document.getElementById(inputId);
+  if (!el) return;
+  const val = el.value || el.textContent;
+  navigator.clipboard.writeText(val).then(() => showToast('📋 Copied to clipboard!', 2000)).catch(() => {
+    el.select && el.select();
+    document.execCommand('copy');
+    showToast('📋 Copied!', 2000);
+  });
+}
+
+function copyVal(val) {
+  navigator.clipboard.writeText(val).then(() => showToast('📋 Copied to clipboard!', 2000)).catch(() => showToast('⚠️ Copy failed', 1500));
+}
+
+function toggleApiKey() {
+  const f = document.getElementById('api-key-field');
+  if (f) f.type = f.type === 'password' ? 'text' : 'password';
+}
+function toggleApiKeyById(id) {
+  const f = document.getElementById(id);
+  if (f) f.type = f.type === 'password' ? 'text' : 'password';
+}
+
+function savePostback(inputId) {
+  const id = inputId || 'postback-url';
+  const el = document.getElementById(id);
+  const url = el ? el.value.trim() : '';
+  if (!url) { showToast('⚠️ Please enter a postback URL', 2000); return; }
+  localStorage.setItem('postback_url', url);
+  // Sync both inputs
+  ['postback-url','postback-url-cre'].forEach(sid => { const e = document.getElementById(sid); if(e) e.value = url; });
+  showToast('✅ Postback URL saved!', 2000);
+}
+
+function showPage(name) {
+  // Hide all pages
+  document.querySelectorAll('.page-view').forEach(p => p.style.display = 'none');
+  // Show target
+  const target = document.getElementById('page-' + name);
+  if (target) { target.style.display = 'block'; window.scrollTo(0, 0); }
+  // Update sidebar active state
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const navEl = document.getElementById('nav-' + name);
+  if (navEl) navEl.classList.add('active');
+  // Update header title
+  const titles = {
+    dashboard: ['Affiliate Dashboard','Monitor casino traffic, FTDs, revenue, and commissions'],
+    reports: ['Performance Reports','Detailed breakdown by date, brand, GEO, and source'],
+    games: ['Game Performance','Top games and providers by GGR, sessions and players'],
+    brands: ['Brands','Partner casino programs'],
+    campaigns: ['Campaigns','Manage your traffic campaigns'],
+    players: ['Players','Your referred players and their activity'],
+    commissions: ['Commissions','Earnings breakdown and commission details'],
+    payments: ['Payments','Payout history and payment settings'],
+    creatives: ['Marketing & Creatives','Banners, landing pages, and promo materials'],
+    tracking: ['Tracking Links','Create and manage referral links'],
+    postbacks: ['Postbacks & API','Configure postbacks and API integration'],
+    notifications: ['Notifications','Recent alerts and messages'],
+    settings: ['Settings','Account preferences and security'],
+  };
+  const t = titles[name];
+  if (t) {
+    const h1 = document.querySelector('#header .header-titles h1');
+    const sub = document.querySelector('#header .header-titles p');
+    if (h1) h1.textContent = t[0];
+    if (sub) sub.textContent = t[1];
+  }
+  // Populate tracking page ref links from global API data
+  if (name === 'tracking' || name === 'settings') refreshSecondaryFields();
+  if (name === 'notifications') loadNotifications();
+  if (name === 'games') loadGamePerformance();
+  if (name === 'creatives') updateMarketingLinks();
+}
+
+function refreshSecondaryFields() {
+  const me = window._apiData && window._apiData.me;
+  if (!me) return;
+  const refLink = me.ref_link || ('https://cryptora.live/?ref=' + (me.ref_code || ''));
+  ['ref-link-tracking','ref-link-sub-tracking'].forEach((id,i) => {
+    const el = document.getElementById(id);
+    if (el) el.value = i === 0 ? refLink : refLink + '?sub=campaign1';
+  });
+  const settings = {
+    'settings-email': me.email || '',
+    'settings-refcode': me.ref_code || '',
+    'settings-revshare': (me.revshare_percent || 25) + '%',
+  };
+  Object.entries(settings).forEach(([id, val]) => {
+    const el = document.getElementById(id);
+    if (el) el.value = val;
+  });
+}
+
+function generateSubLink() {
+  const sub = document.getElementById('custom-sub').value.trim();
+  const me = window._apiData && window._apiData.me;
+  const base = me ? (me.ref_link || ('https://cryptora.live/?ref=' + me.ref_code)) : 'https://cryptora.live/?ref=';
+  const link = base + (sub ? '&sub=' + encodeURIComponent(sub) : '');
+  const el = document.getElementById('generated-link');
+  const wrap = document.getElementById('generated-link-wrap');
+  if (el) el.value = link;
+  if (wrap) wrap.style.display = 'block';
+}
+
+async function changePassword() {
+  const oldPwd = document.getElementById('settings-old-pwd').value;
+  const newPwd = document.getElementById('settings-new-pwd').value;
+  if (!oldPwd || !newPwd) { showToast('⚠️ Fill in both password fields', 2000); return; }
+  const token = localStorage.getItem('aff_token');
+  const r = await fetch('https://cryptora.live/api/affiliate/auth/change-password', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ old_password: oldPwd, new_password: newPwd })
+  });
+  const d = await r.json();
+  if (r.ok) { showToast('✅ Password updated!', 2500); document.getElementById('settings-old-pwd').value = ''; document.getElementById('settings-new-pwd').value = ''; }
+  else showToast('❌ ' + (d.error || 'Failed'), 2500);
+}
+
+async function testPostback() {
+  const token = localStorage.getItem('aff_token');
+  const r = await fetch('https://cryptora.live/api/affiliate/postback/test', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + token }
+  });
+  const d = await r.json();
+  if (r.ok) showToast('✅ Test postback sent!', 2500);
+  else showToast('⚠️ ' + (d.error || 'No postback URL set'), 2500);
+}
+
+function smoothScroll(id) {
+  // Legacy — now unused
+  showPage('dashboard');
+}
+
+let toastTimer;
+function showToast(msg, duration = 2000) {
+  const toast = document.getElementById('toast');
+  const msgEl = document.getElementById('toast-msg');
+  msgEl.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), duration);
+}
+
+// ═══════════════════════════════════════════
+// Restore postback URL from storage
+// ═══════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  const savedPb = localStorage.getItem('postback_url');
+  if (savedPb) {
+    ['postback-url','postback-url-cre'].forEach(id => {
+      const el = document.getElementById(id); if(el) el.value = savedPb;
+    });
+  }
+});
+
+function loadNotifications() {
+  const list = document.getElementById('notif-list');
+  const tag = document.getElementById('notif-count-tag');
+  if (!list) return;
+  list.innerHTML = '<div style="padding:32px;text-align:center;color:var(--muted)">Loading…</div>';
+
+  const token = localStorage.getItem('aff_token');
+  const headers = token ? { Authorization: 'Bearer ' + token } : {};
+
+  Promise.all([
+    fetch('/api/affiliate/commissions', { headers }).then(r => r.json()).catch(() => []),
+    fetch('/api/affiliate/referrals?limit=20', { headers }).then(r => r.json()).catch(() => ({ referrals: [] })),
+  ]).then(([commissions, refData]) => {
+    const items = [];
+
+    // Commissions as notifications
+    const comms = Array.isArray(commissions) ? commissions : [];
+    comms.forEach(c => {
+      if (!c || !c.amount) return;
+      const amount = parseFloat(c.amount) || 0;
+      const isPaid = c.status === 'paid';
+      const isApproved = c.status === 'approved';
+      items.push({
+        icon: isPaid ? '💰' : isApproved ? '✅' : '🕐',
+        color: isPaid ? 'rgba(16,185,129,0.12)' : isApproved ? 'rgba(59,130,246,0.12)' : 'rgba(240,192,64,0.12)',
+        title: isPaid ? `Commission Paid — $${amount.toFixed(2)}`
+             : isApproved ? `Commission Approved — $${amount.toFixed(2)}`
+             : `Commission Pending — $${amount.toFixed(2)}`,
+        desc: `Period: ${c.period_start ? c.period_start.slice(0,10) : '—'} — ${c.period_end ? c.period_end.slice(0,10) : '—'} · ${c.commission_type || 'revshare'}`,
+        time: c.created_date || c.created_at || '',
+        read: isPaid,
+      });
+    });
+
+    // Referrals as notifications
+    const refs = Array.isArray(refData) ? refData : (refData.referrals || []);
+    refs.slice(0, 10).forEach(r => {
+      const isDepositor = r.status !== 'registered';
+      items.push({
+        icon: isDepositor ? '🎰' : '👤',
+        color: isDepositor ? 'rgba(16,185,129,0.12)' : 'rgba(139,92,246,0.12)',
+        title: isDepositor ? `New Depositor Referred` : `New Registration`,
+        desc: `Player registered via your link${r.sub_id ? ' · SubID: ' + r.sub_id : ''}`,
+        time: r.registered_at || r.created_date || '',
+        read: true,
+      });
+    });
+
+    // Sort by time desc
+    items.sort((a, b) => (b.time || '').localeCompare(a.time || ''));
+
+    if (!items.length) {
+      list.innerHTML = '<div style="padding:48px;text-align:center;color:var(--muted);font-size:0.9rem">🔔 No notifications yet. They will appear when you have referrals or commission payouts.</div>';
+      if (tag) tag.textContent = '0';
+      return;
+    }
+
+    const unread = items.filter(i => !i.read).length;
+    if (tag) tag.textContent = unread > 0 ? unread + ' New' : items.length + ' Total';
+
+    function timeAgo(ts) {
+      if (!ts) return '';
+      const d = new Date(ts);
+      if (isNaN(d)) return ts.slice(0,10);
+      const diff = Date.now() - d.getTime();
+      const h = Math.floor(diff / 3600000);
+      if (h < 1) return 'just now';
+      if (h < 24) return h + 'h ago';
+      const days = Math.floor(h / 24);
+      if (days < 7) return days + 'd ago';
+      return d.toLocaleDateString('en', { month:'short', day:'numeric', year:'numeric' });
+    }
+
+    list.innerHTML = items.map(item => `
+      <div class="notif-item">
+        <div class="notif-icon" style="background:${item.color}">${item.icon}</div>
+        <div class="notif-body">
+          <div class="notif-title">${item.title}</div>
+          <div class="notif-desc">${item.desc}</div>
+          <div class="notif-time">${timeAgo(item.time)}</div>
+        </div>
+        <div class="notif-dot ${item.read ? 'read' : ''}"></div>
+      </div>`).join('');
+  });
+}
+
+
+function loadGamePerformance() {
+  const gamesBody = document.getElementById('top-games-body');
+  const providersRow = document.getElementById('providers-row');
+  const countTag = document.getElementById('games-count-tag');
+  if (!gamesBody) return;
+
+  const token = localStorage.getItem('aff_token');
+  const h = token ? { Authorization: 'Bearer ' + token } : {};
+
+  gamesBody.innerHTML = '<div style="text-align:center;color:var(--muted);padding:32px">Loading…</div>';
+  providersRow.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;padding:16px">Loading…</div>';
+
+  Promise.all([
+    fetch('/api/affiliate/top-games?limit=20', { headers: h }).then(r => r.json()),
+    fetch('/api/affiliate/top-providers', { headers: h }).then(r => r.json()),
+  ]).then(([games, providers]) => {
+    // Providers row
+    if (!Array.isArray(providers) || !providers.length) {
+      providersRow.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;padding:16px 20px">No provider data yet — will populate as referred players play games.</div>';
+    } else {
+      const totalGGR = providers.reduce((s, p) => s + (p.ggr || 0), 0);
+      providersRow.innerHTML = providers.map(p => {
+        const pct = totalGGR > 0 ? Math.round((p.ggr / totalGGR) * 100) : 0;
+        return `<div class="stat-card">
+          <div class="stat-label">${p.provider || 'Unknown'}</div>
+          <div class="stat-value">$${(p.ggr||0).toFixed(2)}</div>
+          <div style="font-size:0.78rem;color:var(--muted);margin-top:4px">${p.players} players · ${p.sessions} sessions · ${pct}% of GGR</div>
+        </div>`;
+      }).join('');
+    }
+
+    // Games table
+    if (!Array.isArray(games) || !games.length) {
+      gamesBody.innerHTML = '<div style="text-align:center;color:var(--muted);padding:32px;font-size:0.9rem">No game data yet. Data appears when your referred players play games.</div>';
+      if (countTag) countTag.textContent = '0 games';
+      return;
+    }
+    if (countTag) countTag.textContent = games.length + ' games';
+    gamesBody.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:0.85rem">
+      <thead><tr style="color:var(--muted);border-bottom:1px solid var(--border)">
+        <th style="text-align:left;padding:8px 12px">#</th>
+        <th style="text-align:left;padding:8px 12px">Game</th>
+        <th style="text-align:left;padding:8px 12px">Provider</th>
+        <th style="text-align:right;padding:8px 12px">Players</th>
+        <th style="text-align:right;padding:8px 12px">Sessions</th>
+        <th style="text-align:right;padding:8px 12px">Total Bet</th>
+        <th style="text-align:right;padding:8px 12px">GGR</th>
+      </tr></thead>
+      <tbody>
+        ${games.map((g, i) => `
+        <tr style="border-bottom:1px solid var(--border)" onmouseenter="this.style.background='rgba(255,255,255,0.02)'" onmouseleave="this.style.background=''">
+          <td style="padding:8px 12px;color:var(--muted)">${i+1}</td>
+          <td style="padding:8px 12px;color:var(--text);font-weight:500">${g.title || '—'}</td>
+          <td style="padding:8px 12px;color:var(--muted)">${g.provider || '—'}</td>
+          <td style="padding:8px 12px;text-align:right;color:var(--text)">${g.players}</td>
+          <td style="padding:8px 12px;text-align:right;color:var(--muted)">${g.sessions}</td>
+          <td style="padding:8px 12px;text-align:right;color:var(--muted)">$${(g.total_bet||0).toFixed(2)}</td>
+          <td style="padding:8px 12px;text-align:right;color:${g.ggr > 0 ? 'var(--green)' : 'var(--red)'}">$${(g.ggr||0).toFixed(2)}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+  }).catch(e => {
+    gamesBody.innerHTML = '<div style="color:var(--red);padding:20px">Error loading game data.</div>';
+  });
+}
+
+// Fix Marketing Tools ref link with real ref code from API data
+function updateMarketingLinks() {
+  const me = window._apiData && window._apiData.me;
+  if (!me || !me.ref_code) return;
+  const base = 'https://cryptora.live/?ref=' + me.ref_code;
+  const linkEl = document.getElementById('mkt-ref-link');
+  const subEl = document.getElementById('mkt-ref-link-sub');
+  if (linkEl) linkEl.value = base;
+  if (subEl) subEl.value = base + '&sub=campaign1';
+}
+
+</script>
+</body>
+</html>
