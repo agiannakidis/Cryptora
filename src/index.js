@@ -87,7 +87,7 @@ app.use('/api/partners', expressSession({
   secret: _SESSION_SECRET || 'must-set-SESSION_SECRET',
   resave: false, saveUninitialized: false,
   name: 'partner_sid',
-  cookie: { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 24*60*60*1000 },
+  cookie: { httpOnly: true, secure: false, sameSite: 'lax', maxAge: 24*60*60*1000 },  // secure handled by Cloudflare/nginx
 })); // Trust Nginx / Cloudflare
 app.use(express.urlencoded({ extended: true }));
 
