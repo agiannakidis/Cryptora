@@ -70,6 +70,9 @@ router.get('/deposit-address', authenticate, async (req, res) => {
   // ARBITRUM monitoring not implemented — reject deposits
   if (chain === 'ARBITRUM') return res.status(400).json({ error: 'ARBITRUM deposits are currently disabled. Supported chains: TRX, ETH, BSC, POLYGON, BTC, LTC, SOL, XRP, TON' });
 
+  // TON: no polling deposit monitor implemented — reject deposits
+  if (chain === 'TON') return res.status(400).json({ error: 'TON deposits are currently disabled pending monitoring implementation. TON withdrawals are supported.' });
+
   try {
     const address = await getUserAddress(req.user.id, chain, token);
     res.json({ address, chain, token, network: chainConfig.name, confirmations: chainConfig.confirmations });
@@ -144,6 +147,19 @@ router.post('/withdraw', authenticate, async (req, res) => {
       window: 2,
     });
     if (!valid2fa) return res.status(401).json({ error: 'Invalid 2FA code', requires2fa: true });
+  }
+
+  // TASK 5: Prevent duplicate withdrawal submissions (same amount+address within 60 seconds)
+  const recentDuplicate = await queryOne(
+    `SELECT id FROM crypto_withdrawals
+     WHERE user_id = $1 AND to_address = $2 AND amount_usd = $3
+       AND status IN ('pending', 'processing')
+       AND created_date > NOW() - INTERVAL '60 seconds'
+     LIMIT 1`,
+    [req.user.id, to_address, amountUsd]
+  );
+  if (recentDuplicate) {
+    return res.status(429).json({ error: 'Duplicate withdrawal: identical request already pending. Please wait 60 seconds.' });
   }
 
   // FIX: Atomic balance check + deduction with FOR UPDATE (prevents double-spend race condition)
@@ -254,14 +270,34 @@ router.get('/admin/withdrawals/pending', authenticate, async (req, res) => {
 
 router.post('/admin/withdrawals/:id/approve', authenticate, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-  const w = await queryOne('SELECT * FROM crypto_withdrawals WHERE id = $1', [req.params.id]);
-  if (!w || w.status !== 'pending') return res.status(400).json({ error: 'Not found or not pending' });
 
-  // Mark as approved (keep pending so processWithdrawal can pick it up)
-  await query('UPDATE crypto_withdrawals SET approved_by=$1 WHERE id=$2',
-    [req.user.email, req.params.id]);
+  // Idempotency: use SELECT FOR UPDATE to atomically check and update status
+  let w;
+  try {
+    await transaction(async (client) => {
+      const locked = await client.query(
+        'SELECT * FROM crypto_withdrawals WHERE id = $1 FOR UPDATE',
+        [req.params.id]
+      );
+      if (!locked.rowCount) throw new Error('NOT_FOUND');
+      w = locked.rows[0];
+      if (w.status !== 'pending') throw new Error('NOT_PENDING:' + w.status);
+      // Mark as approved atomically while holding lock
+      await client.query(
+        'UPDATE crypto_withdrawals SET approved_by=$1, status=$2 WHERE id=$3 AND status=$4',
+        [req.user.email, 'processing', req.params.id, 'pending']
+      );
+    });
+  } catch (e) {
+    if (e.message === 'NOT_FOUND') return res.status(404).json({ error: 'Withdrawal not found' });
+    if (e.message.startsWith('NOT_PENDING:')) {
+      const current = e.message.split(':')[1];
+      return res.status(400).json({ error: `Withdrawal is already ${current}, cannot approve again` });
+    }
+    throw e;
+  }
 
-  // processWithdrawal will set status to processing/completed/failed
+  // processWithdrawal will complete/fail it (status already 'processing')
   processWithdrawal(req.params.id).catch(async (err) => {
     await query('UPDATE users SET balance = balance + $1 WHERE id = $2', [w.amount_usd, w.user_id]);
     await query('UPDATE crypto_withdrawals SET status=$1, error=$2 WHERE id=$3',

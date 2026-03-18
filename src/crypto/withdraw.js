@@ -50,7 +50,17 @@ function getHotWalletAddress(chain) {
 
 async function processWithdrawal(withdrawalId) {
   const wd = await queryOne('SELECT * FROM crypto_withdrawals WHERE id = $1', [withdrawalId]);
-  if (!wd || !['pending', 'processing'].includes(wd.status)) return null;
+  if (!wd) return null;
+  // Idempotency guard: skip if already completed to prevent double-sends
+  if (wd.status === 'completed') {
+    console.log('[Withdrawal] Already completed, skipping: ' + withdrawalId);
+    return { txHash: wd.tx_hash };
+  }
+  if (wd.status === 'processing') {
+    console.log('[Withdrawal] Already processing, skipping duplicate: ' + withdrawalId);
+    return null;
+  }
+  if (!['pending'].includes(wd.status)) return null;
 
   const { chain, token, amount_crypto, to_address } = wd;
   const chainConfig = CHAINS[chain];
@@ -60,6 +70,9 @@ async function processWithdrawal(withdrawalId) {
   let result;
 
   try {
+    // Mark as processing to prevent concurrent execution
+    await query("UPDATE crypto_withdrawals SET status='processing' WHERE id=$1 AND status='pending'", [withdrawalId]);
+
     // Always send from HOT WALLET, not user's HD wallet
     const privateKey = getHotWalletKey(chain);
     const hotAddress = getHotWalletAddress(chain);
@@ -130,7 +143,12 @@ async function processWithdrawal(withdrawalId) {
     } catch(refundErr) {
       console.error('[Withdrawal] REFUND FAILED for ' + withdrawalId + ': ' + refundErr.message);
     }
-    console.error('[Withdrawal] Failed ' + withdrawalId + ': ' + e.message);
+    console.error('[Withdrawal] FAILED', JSON.stringify({
+      withdrawalId, chain: wd.chain, token: wd.token,
+      amount: wd.amount_crypto, amountUsd: wd.amount_usd,
+      userId: wd.user_id, toAddress: wd.to_address,
+      error: e.message,
+    }));
     throw e;
   }
 }

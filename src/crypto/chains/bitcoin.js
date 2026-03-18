@@ -29,26 +29,53 @@ async function getBalance(address, chain = 'BTC') {
   return { confirmed, unconfirmed, total: confirmed + unconfirmed };
 }
 
+// LTC uses blockcypher public API — rate limited to 3 req/s, no API key
+async function getIncomingTransactionsLTC(address, retries = 3) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(`https://api.blockcypher.com/v1/ltc/main/addrs/${address}/full?limit=20`);
+      if (!res.ok) {
+        if (res.status === 429) {
+          const wait = attempt * 2000;
+          console.warn(`[LTC Monitor] blockcypher rate limited (429), retry ${attempt}/${retries} after ${wait}ms`);
+          await new Promise(r => setTimeout(r, wait));
+          continue;
+        }
+        throw new Error(`blockcypher HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      const incoming = [];
+      for (const tx of (data.txs || [])) {
+        let amount = 0;
+        for (const out of (tx.outputs || [])) {
+          if (out.addresses?.includes(address)) amount += out.value;
+        }
+        if (amount > 0) {
+          incoming.push({
+            txHash: tx.hash,
+            amount: amount / 1e8,
+            confirmations: tx.confirmations || 0,
+            confirmed: tx.confirmations >= 1,
+          });
+        }
+      }
+      return incoming;
+    } catch (e) {
+      if (attempt === retries) {
+        console.error(`[LTC Monitor] blockcypher failed after ${retries} attempts for ${address}: ${e.message}`);
+        return []; // Don't crash the monitor loop
+      }
+      const wait = attempt * 1500;
+      console.warn(`[LTC Monitor] blockcypher error, retry ${attempt}/${retries} after ${wait}ms: ${e.message}`);
+      await new Promise(r => setTimeout(r, wait));
+    }
+  }
+  return [];
+}
+
 async function getIncomingTransactions(address, chain = 'BTC') {
   if (chain === 'LTC') {
-    const res = await fetch(`${getApiBase(chain)}/addrs/${address}/full?limit=20`);
-    const data = await res.json();
-    const incoming = [];
-    for (const tx of (data.txs || [])) {
-      let amount = 0;
-      for (const out of (tx.outputs || [])) {
-        if (out.addresses?.includes(address)) amount += out.value;
-      }
-      if (amount > 0) {
-        incoming.push({
-          txHash: tx.hash,
-          amount: amount / 1e8,
-          confirmations: tx.confirmations || 0,
-          confirmed: tx.confirmations >= 1,
-        });
-      }
-    }
-    return incoming;
+    return await getIncomingTransactionsLTC(address);
   }
 
   // BTC via blockstream

@@ -124,3 +124,18 @@ pm2 restart casino-backend
 ## License
 
 Private — all rights reserved.
+
+## Known Limitations and Disabled Features
+
+| Feature | Status | Notes |
+|---|---|---|
+| **TON deposits** | ❌ Disabled | No deposit monitor loop implemented. Returns 400. TON withdrawals work. |
+| **ARBITRUM** | ❌ Fully disabled | No monitor, no deposit, no withdrawal. Returns 400 on all deposit/withdrawal attempts. |
+| **LTC deposits** | ⚠️ Limited | Monitored via blockcypher public API (rate-limited to ~3 req/s, no API key). May miss deposits under heavy load. Withdrawals work. |
+| **SQLite** | ⚠️ Migration helper only | `src/migrate-sqlite.js` exists for schema reference. Not used at runtime — all production data is in PostgreSQL. |
+| **Stripe** | ⚠️ Not implemented | Declared in `.env.example` but no Stripe routes exist. Planned for future card deposit support. |
+
+### Planned Improvements
+- TON deposit monitoring (requires TON Center or tonclient polling loop)
+- ARBITRUM support (requires Arbitrum RPC endpoint and event subscription)
+- LTC: migrate from blockcypher to litecoinspace.org for higher rate limits
