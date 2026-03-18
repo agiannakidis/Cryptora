@@ -65,6 +65,7 @@ const CHAINS = {
   },
   ARBITRUM: {
     id: 'ARBITRUM',
+    disabled: true,
     name: 'Arbitrum',
     symbol: 'ETH',
     type: 'evm',
@@ -114,10 +115,8 @@ const CHAINS = {
     decimals: 9,
     confirmations: 1,
     rpc: 'https://api.mainnet-beta.solana.com',
-    tokens: ['SOL', 'USDC'],
-    tokenContracts: {
-      USDC: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
-    },
+    tokens: ['SOL'], // USDC on SOL disabled — monitoring not implemented
+    tokenContracts: {},
   },
   XRP: {
     id: 'XRP',

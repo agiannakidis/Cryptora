@@ -23,7 +23,7 @@ async function checkSelfExclusion(userId) {
       return { blocked: true, reason: `You have self-excluded until ${until}. Please respect your decision.` };
     }
     return { blocked: false };
-  } catch(e) { return { blocked: false }; }
+  } catch(e) { console.error('[RG CRITICAL] checkSelfExclusion DB error for user', userId, ':', e.message); return { blocked: false }; // fail-open intentionally — exclusion check failure should NOT block deposits
 }
 
 async function checkDepositLimit(userId, amountUsd) {
@@ -38,7 +38,7 @@ async function checkDepositLimit(userId, amountUsd) {
     if (user.deposit_limit_monthly !== null && monthly.deposited + amountUsd > parseFloat(user.deposit_limit_monthly))
       return { allowed: false, reason: `Monthly deposit limit of $${user.deposit_limit_monthly} would be exceeded (used: $${monthly.deposited.toFixed(2)})` };
     return { allowed: true };
-  } catch(e) { return { allowed: true }; }
+  } catch(e) { console.error('[RG CRITICAL] checkDepositLimit failed for user:', userId, ':', e.message); process.emit('rg-check-failure', { fn: 'checkDepositLimit', userId, error: e.message }); return { allowed: true }; // fail-open intentionally
 }
 
 async function checkWagerLimit(userId, betAmountUsd) {

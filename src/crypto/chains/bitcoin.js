@@ -33,7 +33,8 @@ async function getBalance(address, chain = 'BTC') {
 async function getIncomingTransactionsLTC(address, retries = 3) {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      const res = await fetch(`https://api.blockcypher.com/v1/ltc/main/addrs/${address}/full?limit=20`);
+      const apiKeyParam = process.env.BLOCKCYPHER_API_KEY ? `?token=${process.env.BLOCKCYPHER_API_KEY}&limit=20` : `?limit=20`;
+      const res = await fetch(`https://api.blockcypher.com/v1/ltc/main/addrs/${address}/full${apiKeyParam}`);
       if (!res.ok) {
         if (res.status === 429) {
           const wait = attempt * 2000;

@@ -515,6 +515,7 @@ router.delete('/admin/delete-user/:id', authMiddleware, async (req, res) => {
 
 // ── Debug: verify-code (dev only) ─────────────────────────────────────────────
 router.get('/debug/verify-code', async (req, res) => {
+  if (process.env.NODE_ENV === 'production') return res.status(404).json({ error: 'Not found' });
   const { email, secret } = req.query;
   if (secret !== process.env.JWT_SECRET) return res.status(403).json({ error: 'Forbidden' });
   const user = await queryOne(

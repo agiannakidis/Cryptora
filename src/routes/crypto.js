@@ -45,10 +45,12 @@ const { queryAll: chQueryAll, queryOne: chQueryOne } = require('../chdb');
 // ── Chains & prices (public) ──────────────────────────────────────────────────
 
 router.get('/chains', (req, res) => {
-  const chains = Object.values(CHAINS).map(c => ({
-    id: c.id, name: c.name, symbol: c.symbol,
-    tokens: c.tokens, confirmations: c.confirmations, type: c.type,
-  }));
+  const chains = Object.values(CHAINS)
+    .filter(c => !c.disabled) // exclude fully disabled chains (e.g. ARBITRUM)
+    .map(c => ({
+      id: c.id, name: c.name, symbol: c.symbol,
+      tokens: c.tokens, confirmations: c.confirmations, type: c.type,
+    }));
   res.json({ chains });
 });
 
