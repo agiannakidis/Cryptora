@@ -1,4 +1,6 @@
 // analytics-admin.js — Admin Analytics Dashboard for Cryptora
+if (!window.location.pathname.startsWith("/admin")) { /* not an admin page */ }
+
 (function () {
   'use strict';
 

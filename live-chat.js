@@ -23,12 +23,12 @@
     #lc-btn {
       position:fixed; bottom:24px; right:24px; z-index:9000;
       width:56px; height:56px; border-radius:50%;
-      background:linear-gradient(135deg,#f0c040,#e07b00);
-      border:none; cursor:pointer; box-shadow:0 4px 20px rgba(240,192,64,.4);
+      background:linear-gradient(135deg,var(--cr-gold,#f0c040),var(--cr-gold-dark,#e07b00));
+      border:none; cursor:pointer; box-shadow:0 4px 20px rgba(var(--cr-gold-rgb,240,192,64),.4);
       display:flex; align-items:center; justify-content:center;
       transition:transform .2s, box-shadow .2s;
     }
-    #lc-btn:hover { transform:scale(1.1); box-shadow:0 6px 28px rgba(240,192,64,.5); }
+    #lc-btn:hover { transform:scale(1.1); box-shadow:0 6px 28px rgba(var(--cr-gold-rgb,240,192,64),.5); }
     #lc-btn svg { width:26px; height:26px; fill:#0a0e1a; }
     #lc-badge {
       position:absolute; top:-3px; right:-3px;
@@ -39,20 +39,20 @@
     #lc-window {
       position:fixed; bottom:92px; right:24px; z-index:9001;
       width:340px; height:480px; max-height:calc(100vh - 120px);
-      background:#0d1220; border:1px solid #252b45; border-radius:16px;
+      background:var(--cr-bg-elevated,#0d1220); border:1px solid var(--cr-border,#252b45); border-radius:16px;
       display:none; flex-direction:column;
       box-shadow:0 8px 40px rgba(0,0,0,.6);
       font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
     }
     #lc-window.open { display:flex; }
     #lc-header {
-      padding:14px 16px; border-bottom:1px solid #252b45;
+      padding:14px 16px; border-bottom:1px solid var(--cr-border,#252b45);
       display:flex; align-items:center; gap:10px; border-radius:16px 16px 0 0;
-      background:linear-gradient(135deg,rgba(240,192,64,.08),transparent);
+      background:linear-gradient(135deg,rgba(var(--cr-gold-rgb,240,192,64),.08),transparent);
     }
     #lc-avatar {
       width:36px; height:36px; border-radius:50%;
-      background:linear-gradient(135deg,#f0c040,#e07b00);
+      background:linear-gradient(135deg,var(--cr-gold,#f0c040),var(--cr-gold-dark,#e07b00));
       display:flex; align-items:center; justify-content:center;
       font-size:18px; flex-shrink:0;
     }
@@ -71,19 +71,19 @@
     }
     #lc-messages::-webkit-scrollbar { width:4px; }
     #lc-messages::-webkit-scrollbar-track { background:transparent; }
-    #lc-messages::-webkit-scrollbar-thumb { background:#252b45; border-radius:2px; }
+    #lc-messages::-webkit-scrollbar-thumb { background:var(--cr-border,#252b45); border-radius:2px; }
     .lc-msg {
       max-width:80%; padding:10px 14px; border-radius:12px;
       font-size:15px; line-height:1.55; word-break:break-word;
     }
     .lc-msg.user {
       align-self:flex-end;
-      background:linear-gradient(135deg,#f0c040,#d97706);
+      background:linear-gradient(135deg,var(--cr-gold,#f0c040),var(--cr-gold-mid,#d97706));
       color:#0a0e1a; font-weight:500; border-radius:12px 12px 2px 12px;
     }
     .lc-msg.admin {
       align-self:flex-start;
-      background:#141829; border:1px solid #252b45; color:#e2e8f0;
+      background:var(--cr-bg-card,#141829); border:1px solid var(--cr-border,#252b45); color:var(--cr-text,#e2e8f0);
       border-radius:12px 12px 12px 2px;
     }
     .lc-msg-time { font-size:11px; opacity:.55; margin-top:3px; }
@@ -92,35 +92,35 @@
       text-align:center; padding:20px 12px; color:#64748b; font-size:13px;
     }
     #lc-welcome strong { display:block; color:#94a3b8; font-size:18px; margin-bottom:6px; }
-    #lc-name-form { padding:12px; border-top:1px solid #252b45; }
+    #lc-name-form { padding:12px; border-top:1px solid var(--cr-border,#252b45); }
     #lc-name-form input {
       width:100%; padding:9px 12px; border-radius:8px;
-      background:#141829; border:1px solid #252b45; color:#fff;
+      background:var(--cr-bg-card,#141829); border:1px solid var(--cr-border,#252b45); color:#fff;
       font-size:16px; outline:none; box-sizing:border-box; margin-bottom:8px;
     }
-    #lc-name-form input:focus { border-color:#f0c040; }
+    #lc-name-form input:focus { border-color:var(--cr-gold,#f0c040); }
     #lc-name-form button {
       width:100%; padding:9px; border-radius:8px;
-      background:linear-gradient(135deg,#f0c040,#d97706);
+      background:linear-gradient(135deg,var(--cr-gold,#f0c040),var(--cr-gold-mid,#d97706));
       border:none; color:#0a0e1a; font-weight:700; font-size:13px;
       cursor:pointer; transition:opacity .2s;
     }
     #lc-name-form button:hover { opacity:.9; }
     #lc-input-area {
-      padding:10px 12px; border-top:1px solid #252b45;
+      padding:10px 12px; border-top:1px solid var(--cr-border,#252b45);
       display:none; gap:8px; align-items:flex-end;
     }
     #lc-input-area.active { display:flex; }
     #lc-input {
       flex:1; padding:9px 12px; border-radius:10px;
-      background:#141829; border:1px solid #252b45; color:#fff;
+      background:var(--cr-bg-card,#141829); border:1px solid var(--cr-border,#252b45); color:#fff;
       font-size:13px; outline:none; resize:none; max-height:100px;
       font-family:inherit; line-height:1.4;
     }
-    #lc-input:focus { border-color:#f0c040; }
+    #lc-input:focus { border-color:var(--cr-gold,#f0c040); }
     #lc-send {
       width:36px; height:36px; border-radius:50%;
-      background:linear-gradient(135deg,#f0c040,#d97706);
+      background:linear-gradient(135deg,var(--cr-gold,#f0c040),var(--cr-gold-mid,#d97706));
       border:none; cursor:pointer; display:flex; align-items:center; justify-content:center;
       flex-shrink:0; transition:opacity .2s;
     }
@@ -320,7 +320,7 @@
       const sys = document.createElement('div');
       sys.style.cssText = 'text-align:center;padding:16px 12px;color:#94a3b8;font-size:13px;';
       sys.innerHTML = '⚠️ <b>This chat has been closed by the administrator.</b><br><br>' +
-        '<button id="lc-new-chat-btn" style="padding:10px 20px;background:linear-gradient(135deg,#f0c040,#d97706);border:none;border-radius:8px;color:#0a0e1a;font-weight:700;font-size:14px;cursor:pointer;">💬 Start new chat</button>';
+        '<button id="lc-new-chat-btn" style="padding:10px 20px;background:linear-gradient(135deg,var(--cr-gold,#f0c040),var(--cr-gold-mid,#d97706));border:none;border-radius:8px;color:#0a0e1a;font-weight:700;font-size:14px;cursor:pointer;">💬 Start new chat</button>';
       wrap.appendChild(sys);
       wrap.scrollTop = wrap.scrollHeight;
     }

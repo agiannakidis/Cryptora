@@ -1,7 +1,16 @@
-// DEPRECATED: tx-colors.js — CSS color injection superseded by design-system.css
-// Keeping for DOM manipulation (sign prefixes on amounts, row scanning) which CSS cannot replicate.
-// Color classes (.tx-amt-*) are still used by DOM logic below.
-// tx-colors.js v3 — color transaction amounts in div-based list layout
+/**
+ * tx-colors.js v3 — Transaction Amount Colorizer
+ *
+ * PURPOSE: CSS alone cannot detect transaction type from sibling text nodes.
+ * This script uses MutationObserver + TreeWalker to:
+ *   1. Find transaction rows in the wallet history list
+ *   2. Detect their type (bet/win/deposit/withdrawal/etc.)
+ *   3. Add .tx-amt-* color classes to the amount element
+ *   4. Prepend +/- sign prefix based on type (CSS cannot mutate text content)
+ *
+ * The .tx-amt-* CSS classes are defined here (not in design-system.css)
+ * because they are tightly coupled to this script's DOM logic.
+ */
 (function () {
   const style = document.createElement('style');
   style.textContent = `

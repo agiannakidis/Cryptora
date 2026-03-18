@@ -1,4 +1,6 @@
 // Banner image upload injector v2
+if (!window.location.pathname.startsWith("/admin")) { /* not an admin page */ }
+
 (function() {
   'use strict';
 
