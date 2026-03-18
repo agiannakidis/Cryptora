@@ -70,7 +70,7 @@ app.use('/api', geoBlock({
     '/banner', '/jackpot', '/ticker', '/crypto/prices',
     '/promotions', '/entities/Game', '/entities/GameProvider',
     '/chat', '/analytics', '/health',
-    '/api/affiliate', '/affiliate', '/api/rgs', '/api/games', '/land', '/api/operator',
+    '/api/affiliate', '/affiliate', '/api/rgs', '/api/games', '/land', '/api/operator', '/api/partners',
   ],
 }));
 
