@@ -70,7 +70,7 @@ app.use('/api', geoBlock({
     '/banner', '/jackpot', '/ticker', '/crypto/prices',
     '/promotions', '/entities/Game', '/entities/GameProvider',
     '/chat', '/analytics', '/health',
-    '/api/affiliate', '/affiliate', '/api/rgs', '/api/games', '/land', '/api/operator', '/api/partners',
+    '/api/affiliate', '/affiliate', '/api/rgs', '/api/games', '/land', '/api/operator', '/api/partners', '/api/dijoker/wallet',
   ],
 }));
 
@@ -146,6 +146,7 @@ app.use('/api/analytics', require('./routes/analytics'));
 app.use('/api/chat', require('./routes/chat'));
 // Partners dashboard routes
 app.use('/api/partners', require('./partners'));
+app.use('/api/dijoker', require('./routes/dijoker'));
 
 app.use('/api/operator', require('./routes/operatorAuth'));
 
